@@ -11,6 +11,7 @@
 #define SNES_B           0x40
 #define SNES_A           0x80
 
+//Using wiringPi numbering
 #define clockPin 9
 #define latchPin 7
 #define dataPin 12
@@ -47,28 +48,34 @@ int main (void)
 	for (;;)
 	{
 		//Wait for latch, should be every 16.67ms
-//		printf("Waiting for latch\n");
 		while (latched == 0)
 		{
 			latched = digitalRead (latchPin);
-			delayMicroseconds (12);
+			delayMicroseconds (6);
 		}
-
+		printf("unlatched ");
 		//Start clocking 16 bits of data after falling edge of latch
 		while (i++ < 16)
 		{
 			//Wait for falling edge of Clock
 			while (clocked == 1)
+			{
 				clocked = digitalRead (clockPin);
+				delayMicroseconds (6);
+			}
 			//Clock out data
-			if (i == 4)
-				digitalWrite (dataPin, 1);
-
+			digitalWrite (dataPin, 1);
+			//Start button
+			if (i == 3)
+				digitalWrite (dataPin, 0);
+			
+			clocked = 1;
 		}
 		i = 0;
 		latched = 0;
-		clocked = 1;
-		//delayMicroseconds (6);
+		//Random wait TODO
+		delay (1000);
+		//delayMicroseconds (5000);
 	}
 	return 0;
 }
