@@ -47,13 +47,15 @@ int main (void)
 	//Main loop
 	for (;;)
 	{
+		i = 0;
+		latched = 0;
 		//Wait for latch, should be every 16.67ms
 		while (latched == 0)
 		{
 			latched = digitalRead (latchPin);
 			delayMicroseconds (6);
 		}
-		printf("unlatched ");
+		//printf("unlatched ");
 		//Start clocking 16 bits of data after falling edge of latch
 		while (i++ < 16)
 		{
@@ -66,15 +68,13 @@ int main (void)
 			//Clock out data
 			digitalWrite (dataPin, 1);
 			//Start button
-			if (i == 3)
+			if (i == 4)
 				digitalWrite (dataPin, 0);
 			
 			clocked = 1;
 		}
-		i = 0;
-		latched = 0;
 		//Random wait TODO
-		delay (1000);
+		//delay (1000);
 		//delayMicroseconds (5000);
 	}
 	return 0;
