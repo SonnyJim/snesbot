@@ -56,22 +56,21 @@ void snesbot (void)
 	int i;
 	for (;;)
 	{
+		// data line should be normally low
 		digitalWrite (dataPin, 0);
+		
 		//Wait for latch pulse, should be every 16.67ms, 12us long
 		while (digitalRead (latchPin) == 0);
 			
+		//Clock out data
 		for (i = 0; i < 16; i++)
 		{
-			//
+			//data line is LOW for button press	
 			digitalWrite (dataPin, 1);
 			//Wait for falling edge of Clock
 			while (digitalRead (clockPin) == 1);
 			
-			//delayMicroseconds (6);
-			
-			//Clock out data
-			//Start button
-			if (i == 3)
+			if (i == 0)
 				digitalWrite (dataPin, 0);
 			//Last 4 bits should always be high
 			else if (i > 11)
@@ -98,7 +97,8 @@ int main (int argc, char *argv[])
 				case 'b':
 				wait_for_rtpie_button = 1;
 				break;
-
+				
+				default:
 				case 'h':
 				show_usage = 1;
 				break;
