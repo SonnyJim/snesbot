@@ -51,6 +51,7 @@ int init_gpio (void)
 
 void snesbot (void)
 {
+	piHiPri (60);
 	int i;
 	int latched = 0;
 	int clocked = 1;
@@ -63,14 +64,13 @@ void snesbot (void)
 		while (latched == 0)
 			latched = digitalRead (latchPin);
 		
-		//delayMicroseconds (6);
 		for (i = 0; i < 16; i++)
 		{
 			digitalWrite (dataPin, 1);
 			//Wait for falling edge of Clock
 			while (clocked)
 				clocked = digitalRead (clockPin);
-			//delayMicroseconds (6);
+			delayMicroseconds (3);
 			
 			//Clock out data
 			//Start button
@@ -82,7 +82,6 @@ void snesbot (void)
 			delayMicroseconds (6);
 			clocked = 1;
 		}
-		//Random wait TODO
 		signal (SIGINT, sig_handler);
 
 	}
