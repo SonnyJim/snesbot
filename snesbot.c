@@ -55,38 +55,40 @@ void snesbot (void)
 	int clocked = 1;
 	for (;;)
 	{
-		i = 0;
+		//i = 0;
 		latched = 0;
+		digitalWrite (dataPin, 0);
+
 		
 		//Wait for latch, should be every 16.67ms, 12us long
 		while (latched == 0)
 		{
 			latched = digitalRead (latchPin);
-			delayMicroseconds (12);
 		}
-
+		//delayMicroseconds (12);
+		
 		//Start clocking 16 bits of data after falling edge of latch
-		while (i++ < 16)
+		for (i = 0; i < 16; i++)
 		{
 			digitalWrite (dataPin, 1);
 			//Wait for falling edge of Clock
 			while (clocked == 1)
 			{
 				clocked = digitalRead (clockPin);
-			//	delayMicroseconds (10);
+				//delayMicroseconds (10);
 			}
-			delayMicroseconds (10);
+			delayMicroseconds (3);
 			//Clock out data
 			//Start button
-			//if (i == 4)
-			//	digitalWrite (dataPin, 0);
-			//Last 4 bits should always be high
-			if (i > 12)
-			{
+			if (i == 3)
 				digitalWrite (dataPin, 0);
+			//Last 4 bits should always be high
+			else if (i > 12)
+			{
+				digitalWrite (dataPin, 1);
 			}
 			clocked = 1;
-			//delayMicroseconds (10);
+			delayMicroseconds (3);
 		}
 		//Random wait TODO
 		signal (SIGINT, sig_handler);
