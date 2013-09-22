@@ -34,13 +34,40 @@ int init_gpio (void)
 	return 0;
 }
 
-int main (void)
+int main (int argc, char *argv[])
 {
 	int i;
 	int latched = 0;
 	int clocked = 1;
-
+	int wait_for_rtpie_button = 0;
+	int show_usage = 0;
+	
 	printf("SNESBot\n");
+	while ((argc > 1) && (argv[1][0] == '-' ))
+	{
+		switch (argv[1][1])
+			{
+				case 'b':
+				wait_for_rtpie_button = 1;
+				break;
+
+				case 'h':
+				show_usage = 1;
+				break;
+			}
+
+		++argv;
+		--argc;
+	}
+	
+	if (show_usage)
+	{
+		printf("Options:\n");
+		printf("-b	Wait for button press on Retropie adapter\n");
+		printf("-h	show this help\n");
+		return 0;
+	}
+	
 	printf("Initialising GPIO\n");
 	if (init_gpio ())
 	{
@@ -48,17 +75,20 @@ int main (void)
 		return 1;
 	}
 
-	printf("Waiting for RetroPie adapter button\n");
-	while (digitalRead (RtPie_Button) == 0)
-		delay (200);
 
+	if (wait_for_rtpie_button)
+	{
+		printf("Waiting for RetroPie adapter button\n");
+		while (digitalRead (RtPie_Button) == 0)
+			delay (200);
+	}
+	
 	printf("Entering main loop\n");
 	//Main loop
 	for (;;)
 	{
 		i = 0;
 		latched = 0;
-		digitalWrite (dataPin, 1);
 		
 		//Wait for latch, should be every 16.67ms, 12us long
 		while (latched == 0)
@@ -70,6 +100,7 @@ int main (void)
 		//Start clocking 16 bits of data after falling edge of latch
 		while (i++ < 16)
 		{
+			digitalWrite (dataPin, 1);
 			//Wait for falling edge of Clock
 			while (clocked == 1)
 			{
@@ -79,12 +110,12 @@ int main (void)
 			delayMicroseconds (10);
 			//Clock out data
 			//Start button
-			if (i == 4)
-				digitalWrite (dataPin, 0);
+			//if (i == 4)
+			//	digitalWrite (dataPin, 0);
 			//Last 4 bits should always be high
 			if (i > 12)
 			{
-				digitalWrite (dataPin, 1);
+				digitalWrite (dataPin, 0);
 			}
 			clocked = 1;
 			//delayMicroseconds (10);
