@@ -15,6 +15,8 @@
 #define clockPin 9
 #define latchPin 7
 #define dataPin 12
+//RetroPie GPIO adapter button 
+#define RtPie_Button 0
 
 unsigned int buttons;
 
@@ -25,7 +27,10 @@ int init_gpio (void)
 	//Set up pins
 	pinMode (clockPin, INPUT);
 	pinMode (latchPin, INPUT);
+	pinMode (RtPie_Button, INPUT);
+	
 	pinMode (dataPin, OUTPUT);
+	digitalWrite (dataPin, 1);
 	return 0;
 }
 
@@ -43,19 +48,25 @@ int main (void)
 		return 1;
 	}
 
+	printf("Waiting for RetroPie adapter button\n");
+	while (digitalRead (RtPie_Button) == 0)
+		delay (200);
+
 	printf("Entering main loop\n");
 	//Main loop
 	for (;;)
 	{
 		i = 0;
 		latched = 0;
-		//Wait for latch, should be every 16.67ms
+		digitalWrite (dataPin, 1);
+		
+		//Wait for latch, should be every 16.67ms, 12us long
 		while (latched == 0)
 		{
 			latched = digitalRead (latchPin);
-			delayMicroseconds (6);
+			delayMicroseconds (12);
 		}
-		//printf("unlatched ");
+
 		//Start clocking 16 bits of data after falling edge of latch
 		while (i++ < 16)
 		{
@@ -63,19 +74,22 @@ int main (void)
 			while (clocked == 1)
 			{
 				clocked = digitalRead (clockPin);
-				delayMicroseconds (6);
+			//	delayMicroseconds (10);
 			}
+			delayMicroseconds (10);
 			//Clock out data
-			digitalWrite (dataPin, 1);
 			//Start button
 			if (i == 4)
 				digitalWrite (dataPin, 0);
-			
+			//Last 4 bits should always be high
+			if (i > 12)
+			{
+				digitalWrite (dataPin, 1);
+			}
 			clocked = 1;
+			//delayMicroseconds (10);
 		}
 		//Random wait TODO
-		//delay (1000);
-		//delayMicroseconds (5000);
 	}
 	return 0;
 }

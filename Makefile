@@ -35,3 +35,6 @@ LDLIBS    = -lwiringPi -lwiringPiDev
 snesbot: snesbot.o
 	@echo [link]
 	@$(CC) -o $@ snesbot.o $(LDFLAGS) $(LDLIBS)
+
+clean:
+	rm snesbot.o snesbot
