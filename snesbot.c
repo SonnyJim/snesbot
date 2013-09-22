@@ -51,26 +51,23 @@ int init_gpio (void)
 
 void snesbot (void)
 {
-	piHiPri (60);
+	// Set priority
+	piHiPri (10);
 	int i;
-	int latched = 0;
-	int clocked = 1;
 	for (;;)
 	{
-		latched = 0;
-
 		digitalWrite (dataPin, 0);
-		//Wait for latch, should be every 16.67ms, 12us long
-		while (latched == 0)
-			latched = digitalRead (latchPin);
-		
+		//Wait for latch pulse, should be every 16.67ms, 12us long
+		while (digitalRead (latchPin) == 0);
+			
 		for (i = 0; i < 16; i++)
 		{
+			//
 			digitalWrite (dataPin, 1);
 			//Wait for falling edge of Clock
-			while (clocked)
-				clocked = digitalRead (clockPin);
-			delayMicroseconds (3);
+			while (digitalRead (clockPin) == 1);
+			
+			//delayMicroseconds (6);
 			
 			//Clock out data
 			//Start button
@@ -80,7 +77,6 @@ void snesbot (void)
 			else if (i > 11)
 				digitalWrite (dataPin, 1);
 			delayMicroseconds (6);
-			clocked = 1;
 		}
 		signal (SIGINT, sig_handler);
 
