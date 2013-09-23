@@ -3,17 +3,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
-#include <unistd.h>
 
-//Use these later on
-#define SNES_RIGHT       0x01
-#define SNES_LEFT        0x02
-#define SNES_DOWN        0x04
-#define SNES_UP          0x08
-#define SNES_START       0x10
-#define SNES_SELECT      0x20
-#define SNES_B           0x40
-#define SNES_A           0x80
+/* SNES Controller button to clock
+   Clock	Button
+   0		B
+   1		Y
+   2		Select
+   3		Start
+   4		Up
+   5		Down
+   6		Left
+   7		Right
+   8		A
+   9		X
+   10		L
+   11		R
+   12		Always High
+   13		Always High
+   14		Always High
+   15		Always High
+*/
 
 //Using wiringPi numbering
 #define clockPin 9
@@ -61,27 +70,25 @@ void snesbot (void)
 		
 		//Wait for latch pulse, should be every 16.67ms, 12us long
 		while (digitalRead (latchPin) == 0);
-			
+		
 		//Clock out data
 		for (i = 0; i < 16; i++)
 		{
 			//data line is LOW for button press	
 			digitalWrite (dataPin, 1);
+			
 			//Wait for falling edge of Clock
 			while (digitalRead (clockPin) == 1);
 			
-			if (i == 0)
+			if (i == 3)
 				digitalWrite (dataPin, 0);
 			//Last 4 bits should always be high
 			else if (i > 11)
 				digitalWrite (dataPin, 1);
 			delayMicroseconds (6);
-		}
+		}	
 		signal (SIGINT, sig_handler);
-
 	}
-
-
 }
 
 int main (int argc, char *argv[])
@@ -136,5 +143,3 @@ int main (int argc, char *argv[])
 	snesbot ();
 	return 0;
 }
-
-
