@@ -31,7 +31,8 @@
 //RetroPie GPIO adapter button 
 #define RtPie_Button 0
 
-unsigned int buttons;
+int clockBit = 0;
+int latched = 0;
 
 void sig_handler (int signo)
 {
@@ -58,13 +59,35 @@ int init_gpio (void)
 	return 0;
 }
 
+void latchPin_interrupt (void)
+{
+	latched = 1;
+	clockBit = 0;
+}
+
+void clockPin_interrupt (void)
+{
+	if (latched)
+	{
+		clockBit++;
+		if (clockBit > 15)
+			latched = 0;
+	}
+}
+
+void setup_interrupts (void)
+{
+	wiringPiISR (latchPin, INT_EDGE_FALLING, &latchPin_interrupt);
+	wiringPiISR (clockPin, INT_EDGE_RISING, &clockPin_interrupt);
+}
+
 void snesbot (void)
 {
 	// Set priority
 	piHiPri (10);
 	int i;
 	for (;;)
-	{
+	{	/*
 		// data line should be normally low
 		digitalWrite (dataPin, 0);
 		
@@ -86,7 +109,12 @@ void snesbot (void)
 			else if (i > 11)
 				digitalWrite (dataPin, 1);
 			delayMicroseconds (6);
-		}	
+		}
+		*/
+		if (latched)
+			printf("Latched \n");
+		printf ("ClockBit = %i \n", clockBit);
+		
 		signal (SIGINT, sig_handler);
 	}
 }
@@ -140,6 +168,7 @@ int main (int argc, char *argv[])
 	
 	printf("Entering main loop\n");
 	//Main loop
+	setup_interrupts ();
 	snesbot ();
 	return 0;
 }
