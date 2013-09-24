@@ -61,20 +61,28 @@ int init_gpio (void)
 
 void latchPin_interrupt (void)
 {
+	printf("Latch Interrupt\n");
 }
 
 void clockPin_interrupt (void)
 {
 	if (latched)
 	{
-		if (clockBit == 3)
-			digitalWrite (dataPin, 0);
+		//Data line is LOW for button press
+		digitalWrite (dataPin, 1);
+//		if (clockBit == 3)
+//			digitalWrite (dataPin, 0);
 		//Last 4 bits should always be high
-		else if (clockBit > 11)
+//		else 
+		if (clockBit > 11)
+		{
 			digitalWrite (dataPin, 1);
-
+			
+		}
+		
 		if (++clockBit > 15)
 		{
+			//All data clocked, reset and wait for next latch
 			clockBit = 0;
 			latched = 0;	
 		}
@@ -83,7 +91,7 @@ void clockPin_interrupt (void)
 
 void setup_interrupts (void)
 {
-//	wiringPiISR (latchPin, INT_EDGE_FALLING, &latchPin_interrupt);
+	//wiringPiISR (latchPin, INT_EDGE_RISING, &latchPin_interrupt);
 	wiringPiISR (clockPin, INT_EDGE_RISING, &clockPin_interrupt);
 }
 
@@ -95,13 +103,18 @@ void snesbot (void)
 	{
 		// data line should be normally low
 		digitalWrite (dataPin, 0);
-		
+		printf ("Waiting for latch, %i\n", latched);	
 		//Wait for latch pulse, should be every 16.67ms, 12us long
-		while (digitalRead (latchPin) == 0);
-		
+		while (digitalRead (latchPin) == 0)
+			latched = 0;
 		latched = 1;	
-		
+		printf ("Unlatched %i\n", latched);	
+
 		signal (SIGINT, sig_handler);
+		//Wait for the next latch pulse,
+		//Takes 192us (16 x 12us) to clock out data
+		//delayMicroseconds (500);
+		delay (10);
 	}
 }
 
