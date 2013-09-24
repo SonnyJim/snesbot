@@ -1,0 +1,123 @@
+=============================
+ SNES Controller Timing Test
+=============================
+Initialising GPIO
+Waiting for first latch
+Got latch! Waiting 10 seconds
+
+
+=================================
+        Pass 1 of 5
+=================================
+Data line is LOW
+Reading interrupts for 10 seconds
+
+Total Latches: 1000.000000
+Total Clocks: 2192.000000
+Latches/sec: 10.000000
+Clocks/sec: 4.562044
+Clocks/latch: 2.192000
+
+
+Data line is HIGH
+Reading interrupts for 10 seconds
+
+Total Latches: 500.000000
+Total Clocks: 500.000000
+Latches/sec: 20.000000
+Clocks/sec: 20.000000
+Clocks/latch: 1.000000
+
+
+=================================
+        Pass 2 of 5
+=================================
+Data line is LOW
+Reading interrupts for 10 seconds
+
+Total Latches: 1000.000000
+Total Clocks: 1205.000000
+Latches/sec: 10.000000
+Clocks/sec: 8.298756
+Clocks/latch: 1.205000
+
+
+Data line is HIGH
+Reading interrupts for 10 seconds
+
+Total Latches: 500.000000
+Total Clocks: 500.000000
+Latches/sec: 20.000000
+Clocks/sec: 20.000000
+Clocks/latch: 1.000000
+
+
+=================================
+        Pass 3 of 5
+=================================
+Data line is LOW
+Reading interrupts for 10 seconds
+
+Total Latches: 1000.000000
+Total Clocks: 1001.000000
+Latches/sec: 10.000000
+Clocks/sec: 9.990010
+Clocks/latch: 1.001000
+
+
+Data line is HIGH
+Reading interrupts for 10 seconds
+
+Total Latches: 500.000000
+Total Clocks: 500.000000
+Latches/sec: 20.000000
+Clocks/sec: 20.000000
+Clocks/latch: 1.000000
+
+
+=================================
+        Pass 4 of 5
+=================================
+Data line is LOW
+Reading interrupts for 10 seconds
+
+Total Latches: 1000.000000
+Total Clocks: 1001.000000
+Latches/sec: 10.000000
+Clocks/sec: 9.990010
+Clocks/latch: 1.001000
+
+
+Data line is HIGH
+Reading interrupts for 10 seconds
+
+Total Latches: 500.000000
+Total Clocks: 500.000000
+Latches/sec: 20.000000
+Clocks/sec: 20.000000
+Clocks/latch: 1.000000
+
+
+=================================
+        Pass 5 of 5
+=================================
+Data line is LOW
+Reading interrupts for 10 seconds
+
+Total Latches: 1000.000000
+Total Clocks: 1000.000000
+Latches/sec: 10.000000
+Clocks/sec: 10.000000
+Clocks/latch: 1.000000
+
+
+Data line is HIGH
+Reading interrupts for 10 seconds
+
+Total Latches: 500.000000
+Total Clocks: 500.000000
+Latches/sec: 20.000000
+Clocks/sec: 20.000000
+Clocks/latch: 1.000000
+
+
