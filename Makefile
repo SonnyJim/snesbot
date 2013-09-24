@@ -36,5 +36,9 @@ snesbot: snesbot.o
 	@echo [link]
 	@$(CC) -o $@ snesbot.o $(LDFLAGS) $(LDLIBS)
 
+snestest: snestest.o
+	@echo [link]
+	@$(CC) -o $@ snestest.o $(LDFLAGS) $(LDLIBS)
+
 clean:
 	rm snesbot.o snesbot
