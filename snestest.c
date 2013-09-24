@@ -9,8 +9,6 @@
 #define clockPin 9
 #define latchPin 7
 #define dataPin 12
-//RetroPie GPIO adapter button 
-#define RtPie_Button 0
 
 float clocked = 0;
 float latched = 0;
@@ -23,9 +21,9 @@ int init_gpio (void)
 	//Set up pins
 	pinMode (clockPin, INPUT);
 	pinMode (latchPin, INPUT);
-	pinMode (RtPie_Button, INPUT);
 	
 	pinMode (dataPin, OUTPUT);
+	digitalWrite (dataPin, 0);
 	return 0;
 }
 
@@ -55,35 +53,41 @@ void read_interrupts (void)
 {
 	float calc;
 	int i;
-	for (i = 0;i < 2; i++)
+	int pass = 1;
+	// Run tests 5 times
+	while (pass <= 5)
 	{
-		digitalWrite (dataPin, i);
-		
 		printf ("=================================\n");
-		if (i)
-			printf ("Data line is HIGH\n");
-		else
-			printf ("Data line is LOW\n");
+		printf ("        Pass %i of 5\n", pass);
 		printf ("=================================\n");
-		
-		printf ("Reading interrupts for 10 seconds\n\n");
-		setup_interrupts ();
-		interrupts_enabled = 1;
-		delay (10000);	
-		interrupts_enabled = 0;
-
-		//Calculate and print results
-		printf ("Total Latches: %f\n", latched);
-		printf ("Total Clocks: %f\n", clocked);
-		calc = 10000 / latched;
-		printf ("Latches/sec: %f\n", calc);
-		calc = 10000 / clocked;
-		printf ("Clocks/sec: %f\n", calc);
-		calc = clocked / latched;
-		printf ("Clocks/latch: %f\n\n\n", calc);
+		for (i = 0;i < 2; i++)
+		{
+			digitalWrite (dataPin, i);
+			
+			if (i)
+				printf ("Data line is HIGH\n");
+			else
+				printf ("Data line is LOW\n");
+			
+			printf ("Reading interrupts for 10 seconds\n\n");
+			setup_interrupts ();
+			interrupts_enabled = 1;
+			delay (10000);	
+			interrupts_enabled = 0;
+	
+			//Calculate and print results
+			printf ("Total Latches: %f\n", latched);
+			printf ("Total Clocks: %f\n", clocked);
+			calc = 10000 / latched;
+			printf ("Latches/sec: %f\n", calc);
+			calc = 10000 / clocked;
+			printf ("Clocks/sec: %f\n", calc);
+			calc = clocked / latched;
+			printf ("Clocks/latch: %f\n\n\n", calc);
+		}
+		pass++;
 	}
 }
-
 int main (void)
 {
 	// Set priority
@@ -100,7 +104,8 @@ int main (void)
 	
 	//Wait for first latch
 	printf ("Waiting for first latch\n");
-	while (digitalRead (latchPin) == 0);
+	while (digitalRead (latchPin) == 0)
+		delayMicroseconds (10);
 	printf ("Got latch! Waiting 10 seconds\n\n\n");
 	//Wait for game to settle
 	sleep (10);
