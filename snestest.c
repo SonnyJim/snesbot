@@ -43,17 +43,18 @@ void clockPin_interrupt (void)
 
 void setup_interrupts (void)
 {
-	latched = 0;
 	wiringPiISR (latchPin, INT_EDGE_RISING, &latchPin_interrupt);
-	clocked = 0;
 	wiringPiISR (clockPin, INT_EDGE_RISING, &clockPin_interrupt);
 }
-
 void read_interrupts (void)
 {
 	float calc;
 	int i;
 	int pass = 1;
+	
+	interrupts_enabled = 0;
+	setup_interrupts ();
+	
 	// Run tests 5 times
 	while (pass <= 5)
 	{
@@ -70,7 +71,8 @@ void read_interrupts (void)
 				printf ("Data line is LOW\n");
 			
 			printf ("Reading interrupts for 10 seconds\n\n");
-			setup_interrupts ();
+			latched = 0;
+			clocked = 0;
 			interrupts_enabled = 1;
 			delay (10000);	
 			interrupts_enabled = 0;
