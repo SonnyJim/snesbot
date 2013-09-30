@@ -30,7 +30,7 @@ INCLUDE	= -I/usr/local/include
 CFLAGS	= $(DEBUG) -Wall $(INCLUDE) -Winline -pipe
 
 LDFLAGS	= -L/usr/local/lib
-LDLIBS    = -lwiringPi -lwiringPiDev 
+LDLIBS    = -lwiringPi -lwiringPiDev
 
 snesbot: snesbot.o
 	@echo [link]
