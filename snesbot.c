@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
+#include <linux/input.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 /* SNES Controller button to clock
    Clock	Button
@@ -33,16 +37,13 @@
 #define Up_Pin		 16 	// 10
 #define Down_Pin	 0 	// 11
 #define Left_Pin	 1 	// 12
-#define Right_Pin	 2 	// 13
+#define Right_Pin	 2 	// 13 Had a weird problem
 #define A_Pin		 3 	// 15
 #define X_Pin		 4 	// 16
 #define TLeft_Pin	 5 	// 18
 #define TRight_Pin	 12 	// 19
 
 #define Latch_Pin	 13 	// 21
-
-int enable_interrupts = 0;
-
 
 void sig_handler (int signo)
 {
@@ -54,13 +55,13 @@ void sig_handler (int signo)
 	}
 }
 
-void clear_buttons (void)
+inline void clear_buttons (void)
 {
 	//Set all buttons to off ie HIGH
 	digitalWrite (B_Pin, HIGH);
 	digitalWrite (Y_Pin, HIGH);
 	digitalWrite (Select_Pin, HIGH);
-	digitalWrite (Start_Pin, LOW);
+	digitalWrite (Start_Pin, HIGH);
 	digitalWrite (Up_Pin, HIGH);
 	digitalWrite (Down_Pin, HIGH);
 	digitalWrite (Left_Pin, HIGH);
@@ -70,6 +71,57 @@ void clear_buttons (void)
 	digitalWrite (TLeft_Pin, HIGH);
 	digitalWrite (TRight_Pin, HIGH);
 }
+
+void read_keyboard (void)
+{
+
+	int fd;
+	struct input_event ev;
+	
+	fd = open("/dev/input/event0", O_RDONLY);
+	read (fd, &ev, sizeof(struct input_event));
+	
+	clear_buttons ();
+	if (ev.type == 1)
+	{
+	//	printf ("key %i state %i\n", ev.code, ev.value);
+		switch (ev.code)
+		{
+			case KEY_UP:
+				digitalWrite (Up_Pin, LOW);
+				break;
+			case KEY_DOWN:
+				digitalWrite (Down_Pin, LOW);
+				break;
+			case KEY_LEFT:
+				digitalWrite (Left_Pin, LOW);
+				break;
+			case KEY_RIGHT:
+				digitalWrite (Right_Pin, LOW);
+				break;
+			case KEY_ENTER:
+				digitalWrite (Start_Pin, LOW);
+				break;
+			case KEY_A:
+				digitalWrite (B_Pin, LOW);
+			case KEY_S:
+				digitalWrite (A_Pin, LOW);
+				break;
+			case KEY_Q:
+				digitalWrite (Y_Pin, LOW);
+				break;
+			case KEY_W:
+				digitalWrite (X_Pin, LOW);
+				break;
+			case KEY_RIGHTSHIFT:
+				digitalWrite (Select_Pin, LOW);
+				break;
+			default:
+				break;
+		}
+	}
+}
+
 
 int init_gpio (void)
 {
@@ -98,20 +150,18 @@ int init_gpio (void)
 
 
 
-void load_sr (void)
+inline void load_sr (void)
 {
-	clear_buttons ();
+	//clear_buttons ();
 }
 
 void latch_interrupt (void)
 {
-	if (enable_interrupts)
-	{
-		// 16 x 12us (192us) for SNES to read SR's
-		delayMicroseconds (206);
-		// Load up the SR's with data
-		load_sr ();
-	}
+	// Wait 16 x 12us (192us) for SNES to read data from 4021s
+	delayMicroseconds (192);
+	// Load up the 4021s with data
+	read_keyboard ();
+	//load_sr ();
 }
 
 void setup_interrupts (void)
@@ -121,25 +171,34 @@ void setup_interrupts (void)
 
 void snesbot (void)
 {
+
 	setup_interrupts ();
-	enable_interrupts = 1;
+	
+	printf("Waiting for first latch\n");
+	while (digitalRead (Latch_Pin) == 0);
+	
+	printf("Go go SNESBot\n");
 	for (;;)
 	{
 		signal (SIGINT, sig_handler);
+		delay (200);
 	}
 }
 
 int main (int argc, char *argv[])
 {
-	// Set priority
-	piHiPri (10); sleep (1);
 	int show_usage = 0;
+	int high_priority = 0;
 	
 	printf("SNESBot v3\n");
 	while ((argc > 1) && (argv[1][0] == '-' ))
 	{
 		switch (argv[1][1])
 			{
+				case 'p':
+				high_priority = 1;
+				break;
+
 				default:
 				case 'h':
 				show_usage = 1;
@@ -153,17 +212,28 @@ int main (int argc, char *argv[])
 	if (show_usage)
 	{
 		printf("Options:\n");
+		printf("-p	Use higher priority\n");
 		printf("-h	show this help\n");
 		return 0;
 	}
 	
+	if (high_priority)
+	{	// Set priority
+		printf("Setting high priority\n");
+		piHiPri (10); sleep (1);
+	}
+	
+		
 	printf("Initialising GPIO\n");
 	if (init_gpio ())
 	{
 		printf ("Error initilising GPIO\n");
 		return 1;
 	}
+
 	printf("Entering main loop\n");
+	
+
 	//Main loop
 	snesbot ();
 	return 0;
