@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <unistd.h>
 
 /* SNES Controller button to clock
    Clock	Button
@@ -24,15 +25,24 @@
    15		Always High
 */
 
-//Using wiringPi numbering
-#define clockPin 9
-#define latchPin 7
-#define dataPin 12
-//RetroPie GPIO adapter button 
-#define RtPie_Button 0
+// 	WiringPi	 	P1 Pin
+#define B_Pin		 8 	// 3
+#define Y_Pin		 9 	// 5
+#define Select_Pin	 7 	// 7
+#define Start_Pin	 15 	// 8
+#define Up_Pin		 16 	// 10
+#define Down_Pin	 0 	// 11
+#define Left_Pin	 1 	// 12
+#define Right_Pin	 2 	// 13
+#define A_Pin		 3 	// 15
+#define X_Pin		 4 	// 16
+#define TLeft_Pin	 5 	// 18
+#define TRight_Pin	 12 	// 19
 
-int clockBit = 0;
-int latched = 0;
+#define Latch_Pin	 13 	// 21
+
+int enable_interrupts = 0;
+
 
 void sig_handler (int signo)
 {
@@ -40,98 +50,96 @@ void sig_handler (int signo)
 	{
 		printf ("Received SIGINT\n");
 		//shutdown_gpio ();
-		digitalWrite (dataPin, 1);
 		exit (signo);
 	}
+}
+
+void clear_buttons (void)
+{
+	//Set all buttons to off ie HIGH
+	digitalWrite (B_Pin, HIGH);
+	digitalWrite (Y_Pin, HIGH);
+	digitalWrite (Select_Pin, HIGH);
+	digitalWrite (Start_Pin, LOW);
+	digitalWrite (Up_Pin, HIGH);
+	digitalWrite (Down_Pin, HIGH);
+	digitalWrite (Left_Pin, HIGH);
+	digitalWrite (Right_Pin, HIGH);
+	digitalWrite (A_Pin, HIGH);
+	digitalWrite (X_Pin, HIGH);
+	digitalWrite (TLeft_Pin, HIGH);
+	digitalWrite (TRight_Pin, HIGH);
 }
 
 int init_gpio (void)
 {
 	if (wiringPiSetup () == -1)
 		return 1;
-	//Set up pins
-	pinMode (clockPin, INPUT);
-	pinMode (latchPin, INPUT);
-	pinMode (RtPie_Button, INPUT);
 	
-	pinMode (dataPin, OUTPUT);
-	digitalWrite (dataPin, 1);
+	//Set up pins
+	pinMode (Latch_Pin, INPUT);
+	
+	pinMode (B_Pin, OUTPUT);
+	pinMode (Y_Pin, OUTPUT);
+	pinMode (Select_Pin, OUTPUT);
+	pinMode (Start_Pin, OUTPUT);
+	pinMode (Up_Pin, OUTPUT);
+	pinMode (Down_Pin, OUTPUT);
+	pinMode (Left_Pin, OUTPUT);
+	pinMode (Right_Pin, OUTPUT);
+	pinMode (A_Pin, OUTPUT);
+	pinMode (X_Pin, OUTPUT);
+	pinMode (TLeft_Pin, OUTPUT);
+	pinMode (TRight_Pin, OUTPUT);
+	
+	clear_buttons ();
 	return 0;
 }
 
-void latchPin_interrupt (void)
+
+
+void load_sr (void)
 {
-	printf("Latch Interrupt\n");
+	clear_buttons ();
 }
 
-void clockPin_interrupt (void)
+void latch_interrupt (void)
 {
-	if (latched)
+	if (enable_interrupts)
 	{
-		//Data line is LOW for button press
-		digitalWrite (dataPin, 1);
-//		if (clockBit == 3)
-//			digitalWrite (dataPin, 0);
-		//Last 4 bits should always be high
-//		else 
-		if (clockBit > 11)
-		{
-			digitalWrite (dataPin, 1);
-			
-		}
-		
-		if (++clockBit > 15)
-		{
-			//All data clocked, reset and wait for next latch
-			clockBit = 0;
-			latched = 0;	
-		}
+		// 16 x 12us (192us) for SNES to read SR's
+		delayMicroseconds (206);
+		// Load up the SR's with data
+		load_sr ();
 	}
 }
 
 void setup_interrupts (void)
 {
-	//wiringPiISR (latchPin, INT_EDGE_RISING, &latchPin_interrupt);
-	wiringPiISR (clockPin, INT_EDGE_RISING, &clockPin_interrupt);
+	wiringPiISR (Latch_Pin, INT_EDGE_RISING, &latch_interrupt);
 }
 
 void snesbot (void)
 {
-	// Set priority
-	piHiPri (10);
+	setup_interrupts ();
+	enable_interrupts = 1;
 	for (;;)
 	{
-		// data line should be normally low
-		digitalWrite (dataPin, 0);
-		printf ("Waiting for latch, %i\n", latched);	
-		//Wait for latch pulse, should be every 16.67ms, 12us long
-		while (digitalRead (latchPin) == 0)
-			latched = 0;
-		latched = 1;	
-		printf ("Unlatched %i\n", latched);	
-
 		signal (SIGINT, sig_handler);
-		//Wait for the next latch pulse,
-		//Takes 192us (16 x 12us) to clock out data
-		//delayMicroseconds (500);
-		delay (10);
 	}
 }
 
 int main (int argc, char *argv[])
 {
-	int wait_for_rtpie_button = 0;
+	// Set priority
+	piHiPri (10); sleep (1);
 	int show_usage = 0;
 	
-	printf("SNESBot\n");
+	printf("SNESBot v3\n");
 	while ((argc > 1) && (argv[1][0] == '-' ))
 	{
 		switch (argv[1][1])
 			{
-				case 'b':
-				wait_for_rtpie_button = 1;
-				break;
-				
 				default:
 				case 'h':
 				show_usage = 1;
@@ -145,7 +153,6 @@ int main (int argc, char *argv[])
 	if (show_usage)
 	{
 		printf("Options:\n");
-		printf("-b	Wait for button press on Retropie adapter\n");
 		printf("-h	show this help\n");
 		return 0;
 	}
@@ -156,18 +163,8 @@ int main (int argc, char *argv[])
 		printf ("Error initilising GPIO\n");
 		return 1;
 	}
-
-
-	if (wait_for_rtpie_button)
-	{
-		printf("Waiting for RetroPie adapter button\n");
-		while (digitalRead (RtPie_Button) == 0)
-			delay (200);
-	}
-	
 	printf("Entering main loop\n");
 	//Main loop
-	setup_interrupts ();
 	snesbot ();
 	return 0;
 }
