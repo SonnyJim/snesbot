@@ -76,9 +76,15 @@ void read_joystick (void)
 				// X axis
 				case 0:
 					if (ev.value > 0)
+					{
 						digitalWrite (Right_Pin, LOW);
+						digitalWrite (Left_Pin, HIGH);
+					}
 					else if (ev.value < 0)
+					{
 						digitalWrite (Left_Pin, LOW);
+						digitalWrite (Right_Pin, HIGH);
+					}
 					else
 					{
 						digitalWrite (Right_Pin, HIGH);
@@ -88,9 +94,15 @@ void read_joystick (void)
 				//Y Axis
 				case 1:
 					if (ev.value > 0)
+					{
 						digitalWrite (Down_Pin, LOW);
+						digitalWrite (Up_Pin, HIGH);
+					}
 					else if (ev.value < 0)
+					{
 						digitalWrite (Up_Pin, LOW);
+						digitalWrite (Down_Pin, HIGH);
+					}
 					else
 					{
 						digitalWrite (Up_Pin, HIGH);
