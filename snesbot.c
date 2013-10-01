@@ -76,89 +76,90 @@ void read_keyboard (void)
 {
 
 	int fd;
-	struct input_event ev;
-	
-	fd = open("/dev/input/event0", O_RDONLY);
-	read (fd, &ev, sizeof(struct input_event));
-	
-	printf ("type %i key %i value %i\n", ev.type, ev.code, ev.value);
-	//clear_buttons ();
-	if (ev.type == 1 && ev.value == 2)
+	struct input_event ev[64];
+	for (;;)
 	{
-		switch (ev.code)
+		fd = open("/dev/input/event0", O_RDONLY);
+		read (fd, &ev, sizeof(struct input_event) * 64);
+		
+		//printf("type %d, code %d, value %d\n", ev[1].type, ev[1].code,ev[1].value);
+		
+		if (ev[1].type == 1 && ev[1].value == 1)
 		{
-			case KEY_UP:
-				digitalWrite (Up_Pin, LOW);
-				break;
-			case KEY_DOWN:
-				digitalWrite (Down_Pin, LOW);
-				break;
-			case KEY_LEFT:
-				digitalWrite (Left_Pin, LOW);
-				break;
-			case KEY_RIGHT:
-				digitalWrite (Right_Pin, LOW);
-				break;
-			case KEY_ENTER:
-				digitalWrite (Start_Pin, LOW);
-				break;
-			case KEY_A:
-				digitalWrite (B_Pin, LOW);
-			case KEY_S:
-				digitalWrite (A_Pin, LOW);
-				break;
-			case KEY_Q:
-				digitalWrite (Y_Pin, LOW);
-				break;
-			case KEY_W:
-				digitalWrite (X_Pin, LOW);
-				break;
-			case KEY_RIGHTSHIFT:
-				digitalWrite (Select_Pin, LOW);
-				break;
-			default:
-				break;
+			switch (ev[1].code)
+			{
+				case KEY_UP:
+					digitalWrite (Up_Pin, LOW);
+					break;
+				case KEY_DOWN:
+					digitalWrite (Down_Pin, LOW);
+					break;
+				case KEY_LEFT:
+					digitalWrite (Left_Pin, LOW);
+					break;
+				case KEY_RIGHT:
+					digitalWrite (Right_Pin, LOW);
+					break;
+				case KEY_ENTER:
+					digitalWrite (Start_Pin, LOW);
+					break;
+				case KEY_A:
+					digitalWrite (B_Pin, LOW);
+				case KEY_S:
+					digitalWrite (A_Pin, LOW);
+					break;
+				case KEY_Q:
+					digitalWrite (Y_Pin, LOW);
+					break;
+				case KEY_W:
+					digitalWrite (X_Pin, LOW);
+					break;
+				case KEY_RIGHTSHIFT:
+					digitalWrite (Select_Pin, LOW);
+					break;
+				default:
+					break;
+			}
+		}
+		
+		if (ev[1].type == 1 && ev[1].value == 0)
+		{
+			switch (ev[1].code)
+			{
+				case KEY_UP:
+					digitalWrite (Up_Pin, HIGH);
+					break;
+				case KEY_DOWN:
+					digitalWrite (Down_Pin, HIGH);
+					break;
+				case KEY_LEFT:
+					digitalWrite (Left_Pin, HIGH);
+					break;
+				case KEY_RIGHT:
+					digitalWrite (Right_Pin, HIGH);
+					break;
+				case KEY_ENTER:
+					digitalWrite (Start_Pin, HIGH);
+					break;
+				case KEY_A:
+					digitalWrite (B_Pin, HIGH);
+				case KEY_S:
+					digitalWrite (A_Pin, HIGH);
+					break;
+				case KEY_Q:
+					digitalWrite (Y_Pin, HIGH);
+					break;
+				case KEY_W:
+					digitalWrite (X_Pin, HIGH);
+					break;
+				case KEY_RIGHTSHIFT:
+					digitalWrite (Select_Pin, HIGH);
+					break;
+				default:
+					break;
+			}
 		}
 	}
-/*	
-	if (ev.value == 0)
-	{
-		switch (ev.code)
-		{
-			case KEY_UP:
-				digitalWrite (Up_Pin, HIGH);
-				break;
-			case KEY_DOWN:
-				digitalWrite (Down_Pin, HIGH);
-				break;
-			case KEY_LEFT:
-				digitalWrite (Left_Pin, HIGH);
-				break;
-			case KEY_RIGHT:
-				digitalWrite (Right_Pin, HIGH);
-				break;
-			case KEY_ENTER:
-				digitalWrite (Start_Pin, HIGH);
-				break;
-			case KEY_A:
-				digitalWrite (B_Pin, HIGH);
-			case KEY_S:
-				digitalWrite (A_Pin, HIGH);
-				break;
-			case KEY_Q:
-				digitalWrite (Y_Pin, HIGH);
-				break;
-			case KEY_W:
-				digitalWrite (X_Pin, HIGH);
-				break;
-			case KEY_RIGHTSHIFT:
-				digitalWrite (Select_Pin, HIGH);
-				break;
-			default:
-				break;
-		}
-	}
-	*/
 }
 
 
@@ -199,7 +200,6 @@ void latch_interrupt (void)
 	// Wait 16 x 12us (192us) for SNES to read data from 4021s
 //	delayMicroseconds (192);
 	// Load up the 4021s with data
-	read_keyboard ();
 	//load_sr ();
 }
 
@@ -217,6 +217,7 @@ void snesbot (void)
 	while (digitalRead (Latch_Pin) == 0);
 	
 	printf("Go go SNESBot\n");
+	read_keyboard ();
 	for (;;)
 	{
 		signal (SIGINT, sig_handler);
