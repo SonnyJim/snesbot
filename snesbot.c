@@ -27,16 +27,9 @@
 
 int keyboard_input = 0;
 int joystick_input = 0;
-
-void sig_handler (int signo)
-{
-	if (signo == SIGINT)
-	{
-		printf ("Received SIGINT\n");
-		//shutdown_gpio ();
-		exit (signo);
-	}
-}
+int record_input = 0;
+int playback_input = 0;
+int verbose = 0;
 
 void clear_buttons (void)
 {
@@ -59,14 +52,37 @@ void read_joystick (void)
 {
 	int fd;
 	struct js_event ev;
-	
-	fd = open("/dev/input/js0", O_RDONLY);
-	
-	for (;;)
+	FILE *out_file;
+	int newpos = 0;
+	int oldpos = 0;
+
+	if (playback_input)
+		fd = open("test.out", O_RDONLY);
+	else	
+		fd = open("/dev/input/js0", O_RDONLY);
+		
+	while (1)
 	{
+		oldpos = newpos;
 		read (fd,&ev, sizeof(struct js_event));
 		
-	//	printf("ev0 axis %d, button %d, value %d\n", ev.type, ev.number,ev.value);
+		if (playback_input)
+		{
+			//Check to see if we've reached EOF
+			newpos = lseek (fd, 0, SEEK_CUR);
+			if (verbose)
+				printf ("New position %i Old position %i\n", newpos, oldpos);
+			if (newpos == oldpos)
+				break;
+		}
+		else if (record_input)
+		{
+			out_file = fopen("test.out", "a");
+			fwrite (&ev, 1, sizeof(struct js_event), out_file);
+			fclose(out_file);
+		}
+		if (verbose)
+			printf("ev0 axis %d, button %d, value %d\n", ev.type, ev.number,ev.value);
 		//ev.number 0/1 = x/y
 		// Axis/Type 2 == dpad
 		if (ev.type == 2)
@@ -189,6 +205,11 @@ void read_joystick (void)
 			}
 		}
 	}
+}
+
+void bitwise_inputs (void)
+{
+	//Set all buttons to off ie HIGH
 }
 
 void read_keyboard (void)
@@ -322,13 +343,6 @@ int init_gpio (void)
 	return 0;
 }
 
-
-
-inline void load_sr (void)
-{
-	//clear_buttons ();
-}
-
 void latch_interrupt (void)
 {
 	// Wait 16 x 12us (192us) for SNES to read data from 4021s
@@ -373,22 +387,34 @@ int main (int argc, char *argv[])
 	{
 		switch (argv[1][1])
 			{
-				case 'p':
-				high_priority = 1;
-				break;
+				case 'P':
+					high_priority = 1;
+					break;
 				
 				case 'k':
-				keyboard_input = 1;
-				break;
+					keyboard_input = 1;
+					break;
 
 				case 'j':
-				joystick_input = 1;
-				break;
+					joystick_input = 1;
+					break;
+				
+				case 'r':
+					record_input = 1;
+					break;
+				
+				case 'p':
+					playback_input = 1;
+					break;
+
+				case 'v':
+					verbose = 1;
+					break;
 
 				default:
 				case 'h':
-				show_usage = 1;
-				break;
+					show_usage = 1;
+					break;
 			}
 
 		++argv;
@@ -398,9 +424,11 @@ int main (int argc, char *argv[])
 	if (show_usage)
 	{
 		printf("Options:\n");
-		printf("-p	Use higher priority\n");
+		printf("-P	Use higher priority\n");
 		printf("-k	Read inputs from keyboard \n");
 		printf("-w	Wait for latch pulse before starting\n");
+		printf("-r	Record input\n");
+		printf("-v	Verbose messages\n");
 		printf("-h	show this help\n");
 		return 0;
 	}
@@ -414,6 +442,17 @@ int main (int argc, char *argv[])
 	if (joystick_input && keyboard_input)
 	{
 		printf ("Choose only joystick OR keyboard input, not both\n");
+		return 1;
+	}
+	else if (!joystick_input && !keyboard_input)
+	{
+		printf ("Choose either joystick (-j) or keyboard (-k) input\n");
+		return 1;
+	}
+
+	if (record_input && playback_input)
+	{
+		printf ("Can't record and playback at the same time!\n");
 		return 1;
 	}
 
