@@ -31,6 +31,22 @@ int record_input = 0;
 int playback_input = 0;
 int verbose = 0;
 int latch_counter = 0;
+int debug_playback = 0;
+char *filename = "snesbot.rec";
+
+
+void latch_interrupt (void)
+{
+	// Wait 16 x 12us (192us) for SNES to read data from 4021s
+	//delayMicroseconds (192);
+	// Load up the 4021s with data
+	latch_counter++;
+}
+
+void setup_interrupts (void)
+{
+	wiringPiISR (Latch_Pin, INT_EDGE_RISING, &latch_interrupt);
+}
 
 void clear_buttons (void)
 {
@@ -57,42 +73,60 @@ void read_joystick (void)
 	int newpos = 0;
 	int oldpos = 0;
 	int current_latch = 0;
-
+	int running = 1;
+	int i;
 	if (playback_input)
-		fd = open("test.out", O_RDONLY);
+		fd = open(filename, O_RDONLY);
 	else	
 		fd = open("/dev/input/js0", O_RDONLY);
-		
-	while (1)
+
+	if (record_input)
 	{
-		oldpos = newpos;
+		out_file = fopen(filename, "w");
+		fclose (out_file);
+		out_file = fopen(filename, "a");
+		//Junk the first 18 reads from event queue?
+		for (i = 0; i < 18; i++)
+			read (fd,&ev, sizeof(struct js_event));
+	}
+
+	setup_interrupts ();
+	
+	while (running)
+	{
 		read (fd,&ev, sizeof(struct js_event));
-		
+
 		if (playback_input)
 		{
-			read (fd, &current_latch, sizeof(char));
-			printf ("atoi %i\n", atoi(&current_latch));
+			oldpos = newpos;
+			//Read when our next latch pulse is
+			read (fd, &current_latch, sizeof(int));
+			
 			//Check to see if we've reached EOF
 			newpos = lseek (fd, 0, SEEK_CUR);
 			if (verbose)
 			{
-				printf ("Old position %i New position %i\n", oldpos, newpos);
-				printf ("Current latch %i\n", current_latch);
+				printf ("Old file position %i New file position %i\n", oldpos, newpos);
+				printf ("Waiting for latch %i\n", current_latch);
+				printf("Current SNES latch %i\n", latch_counter);
 			}
 			if (newpos == oldpos)
 				break;
+			//Wait for the SNES latch
+			while ((latch_counter < current_latch) && !debug_playback)
+				delayMicroseconds (10);
 		}
 		else if (record_input)
 		{
-			out_file = fopen("test.out", "a");
 			fwrite (&ev, 1, sizeof(struct js_event), out_file);
+			fwrite (&latch_counter, 1, sizeof(int), out_file);
 			if (verbose)
+			{
 				printf("Latch counter %i\n", latch_counter);
-			fputc (latch_counter, out_file);
-			fclose(out_file);
+			}
 		}
 		if (verbose)
-			printf("ev0 axis %d, button %d, value %d\n", ev.type, ev.number,ev.value);
+			printf("axis %d, button %d, value %d\n", ev.type, ev.number,ev.value);
 		//ev.number 0/1 = x/y
 		// Axis/Type 2 == dpad
 		if (ev.type == 2)
@@ -156,6 +190,7 @@ void read_joystick (void)
 						break;
 					case 2:
 						digitalWrite (B_Pin, LOW);
+						delayMicroseconds (16);
 						break;
 					case 1:
 						digitalWrite (A_Pin, LOW);
@@ -166,13 +201,15 @@ void read_joystick (void)
 					case 0:
 						digitalWrite (X_Pin, LOW);
 						break;
-					case 4:
 					case 6:
 						digitalWrite (TLeft_Pin, LOW);
 						break;
-					case 5:
 					case 7:
 						digitalWrite (TRight_Pin, LOW);
+						break;
+					case 4: 
+					case 5:
+						running = 0;
 						break;
 					default:
 						break;
@@ -214,12 +251,15 @@ void read_joystick (void)
 				}
 			}
 		}
+	
 	}
-}
-
-void bitwise_inputs (void)
-{
-	//Set all buttons to off ie HIGH
+	if (record_input)
+	{
+		printf ("Writing to file %s\n", filename);
+		fclose(out_file);
+	}
+	else if (playback_input)
+		printf ("Finished playback\n");
 }
 
 void read_keyboard (void)
@@ -228,6 +268,7 @@ void read_keyboard (void)
 	struct input_event ev[2];
 
 	fd = open("/dev/input/event0", O_RDONLY);
+	setup_interrupts ();
 
 	for (;;)
 	{
@@ -353,23 +394,9 @@ int init_gpio (void)
 	return 0;
 }
 
-void latch_interrupt (void)
-{
-	// Wait 16 x 12us (192us) for SNES to read data from 4021s
-	//delayMicroseconds (192);
-	// Load up the 4021s with data
-	latch_counter++;
-}
-
-void setup_interrupts (void)
-{
-	wiringPiISR (Latch_Pin, INT_EDGE_RISING, &latch_interrupt);
-}
-
 void snesbot (void)
 {
 	clear_buttons ();
-	setup_interrupts ();
 	
 	
 	printf("Go go SNESBot\n");
@@ -380,11 +407,16 @@ void snesbot (void)
 	}
 	else if (joystick_input)
 	{
-		printf("Reading input from joystick\n");
+		if (record_input)
+			printf ("Recording input to %s\n", filename);
+		else if (playback_input)
+			printf ("Playing back input from %s\n", filename);
+		else
+			printf("Reading input from joystick\n");
 		read_joystick ();
 	}
 
-	printf("Finished\n");
+	printf("Exiting\n");
 }
 
 int main (int argc, char *argv[])
@@ -400,6 +432,15 @@ int main (int argc, char *argv[])
 			{
 				case 'P':
 					high_priority = 1;
+					break;
+
+				case 'd':
+					debug_playback = 1;
+					playback_input = 1;
+					verbose = 1;
+					break;
+				case 'f':
+					filename = &argv[1][3];
 					break;
 				
 				case 'k':
@@ -421,6 +462,9 @@ int main (int argc, char *argv[])
 				case 'v':
 					verbose = 1;
 					break;
+				case 'w':
+					wait_for_latch = 1;
+					break;
 
 				default:
 				case 'h':
@@ -439,6 +483,8 @@ int main (int argc, char *argv[])
 		printf("-k	Read inputs from keyboard \n");
 		printf("-w	Wait for latch pulse before starting\n");
 		printf("-r	Record input\n");
+		printf("-f	read from/write to filename\n");
+		printf("-d	debug playback\n");
 		printf("-v	Verbose messages\n");
 		printf("-h	show this help\n");
 		return 0;
@@ -460,6 +506,11 @@ int main (int argc, char *argv[])
 		printf ("Choose either joystick (-j) or keyboard (-k) input\n");
 		return 1;
 	}
+	if (record_input && debug_playback)
+	{
+		printf ("Can't debug playback and record input!/n");
+		return 1;
+	}
 
 	if (record_input && playback_input)
 	{
@@ -474,7 +525,7 @@ int main (int argc, char *argv[])
 		return 1;
 	}
 
-	if (wait_for_latch)
+	if (wait_for_latch && !debug_playback)
 	{
 		printf("Waiting for first latch\n");
 		while (digitalRead (Latch_Pin) == 0);
