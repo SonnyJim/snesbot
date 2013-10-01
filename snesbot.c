@@ -70,8 +70,7 @@ void clear_buttons (void)
 
 inline void write_joystick_gpio (void)
 {
-//ev.number 0/1 = x/y
-// Axis/Type 2 == dpad
+	// Axis/Type 2 == dpad
 	if (ev.type == 2)
 	{
 		switch (ev.number)
@@ -119,6 +118,7 @@ inline void write_joystick_gpio (void)
 	// Axis/Type 1 == Buttons
 	if (ev.type == 1)
 	{
+		// 1 = ON/LOW, 0 = OFF/HIGH
 		if (ev.value == 1)
 		{
 			switch (ev.number)
@@ -196,7 +196,6 @@ inline void write_joystick_gpio (void)
 
 void handle_exit (void)
 {
-	printf ("record_input %i\n", record_input);
 	if (record_input)
 	{
 		printf ("Writing to file %s\n", filename);
@@ -204,7 +203,6 @@ void handle_exit (void)
 	}
 	else if (playback_input)
 		printf ("Finished playback\n");
-	
 }
 	
 void read_joystick (void)
@@ -479,7 +477,6 @@ int main (int argc, char *argv[])
 					show_usage = 1;
 					break;
 			}
-
 		++argv;
 		--argc;
 	}
@@ -542,7 +539,6 @@ int main (int argc, char *argv[])
 		printf("Waiting for first latch\n");
 		while (digitalRead (Latch_Pin) == 0);
 	}
-
 	//Main loop
 	snesbot ();
 	return 0;
