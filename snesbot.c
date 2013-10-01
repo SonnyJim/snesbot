@@ -30,6 +30,7 @@ int joystick_input = 0;
 int record_input = 0;
 int playback_input = 0;
 int verbose = 0;
+int latch_counter = 0;
 
 void clear_buttons (void)
 {
@@ -55,6 +56,7 @@ void read_joystick (void)
 	FILE *out_file;
 	int newpos = 0;
 	int oldpos = 0;
+	int current_latch = 0;
 
 	if (playback_input)
 		fd = open("test.out", O_RDONLY);
@@ -68,10 +70,15 @@ void read_joystick (void)
 		
 		if (playback_input)
 		{
+			read (fd, &current_latch, sizeof(char));
+			printf ("atoi %i\n", atoi(&current_latch));
 			//Check to see if we've reached EOF
 			newpos = lseek (fd, 0, SEEK_CUR);
 			if (verbose)
-				printf ("New position %i Old position %i\n", newpos, oldpos);
+			{
+				printf ("Old position %i New position %i\n", oldpos, newpos);
+				printf ("Current latch %i\n", current_latch);
+			}
 			if (newpos == oldpos)
 				break;
 		}
@@ -79,6 +86,9 @@ void read_joystick (void)
 		{
 			out_file = fopen("test.out", "a");
 			fwrite (&ev, 1, sizeof(struct js_event), out_file);
+			if (verbose)
+				printf("Latch counter %i\n", latch_counter);
+			fputc (latch_counter, out_file);
 			fclose(out_file);
 		}
 		if (verbose)
@@ -346,8 +356,9 @@ int init_gpio (void)
 void latch_interrupt (void)
 {
 	// Wait 16 x 12us (192us) for SNES to read data from 4021s
-//	delayMicroseconds (192);
+	//delayMicroseconds (192);
 	// Load up the 4021s with data
+	latch_counter++;
 }
 
 void setup_interrupts (void)
