@@ -27,19 +27,22 @@
 
 int keyboard_input = 0;
 int joystick_input = 0;
-int record_input = 0;
+static int record_input = 0;
 int playback_input = 0;
 int verbose = 0;
 int latch_counter = 0;
 int debug_playback = 0;
+int running = 1;
+
 char *filename = "snesbot.rec";
+
+int fd;
+struct js_event ev;
+FILE *out_file;
 
 
 void latch_interrupt (void)
 {
-	// Wait 16 x 12us (192us) for SNES to read data from 4021s
-	//delayMicroseconds (192);
-	// Load up the 4021s with data
 	latch_counter++;
 }
 
@@ -65,15 +68,150 @@ void clear_buttons (void)
 	digitalWrite (TRight_Pin, HIGH);
 }
 
+inline void write_joystick_gpio (void)
+{
+//ev.number 0/1 = x/y
+// Axis/Type 2 == dpad
+	if (ev.type == 2)
+	{
+		switch (ev.number)
+		{
+			// X axis
+			case 0:
+				if (ev.value > 0)
+				{
+					digitalWrite (Right_Pin, LOW);
+					digitalWrite (Left_Pin, HIGH);
+				}
+				else if (ev.value < 0)
+				{
+					digitalWrite (Left_Pin, LOW);
+					digitalWrite (Right_Pin, HIGH);
+				}
+				else
+				{
+					digitalWrite (Right_Pin, HIGH);
+					digitalWrite (Left_Pin, HIGH);
+				}
+				break;
+			//Y Axis
+			case 1:
+				if (ev.value > 0)
+				{
+					digitalWrite (Down_Pin, LOW);
+					digitalWrite (Up_Pin, HIGH);
+				}
+				else if (ev.value < 0)
+				{
+					digitalWrite (Up_Pin, LOW);
+					digitalWrite (Down_Pin, HIGH);
+				}
+				else
+				{
+					digitalWrite (Up_Pin, HIGH);
+					digitalWrite (Down_Pin, HIGH);
+				}
+				break;
+				default:
+				break;
+			}
+	}
+	// Axis/Type 1 == Buttons
+	if (ev.type == 1)
+	{
+		if (ev.value == 1)
+		{
+			switch (ev.number)
+			{
+				case 8:
+					digitalWrite (Select_Pin, LOW);
+					break;
+				case 9:
+					digitalWrite (Start_Pin, LOW);
+					break;
+				case 2:
+					digitalWrite (B_Pin, LOW);
+					delayMicroseconds (16);
+					break;
+				case 1:
+					digitalWrite (A_Pin, LOW);
+					break;
+				case 3:
+					digitalWrite (Y_Pin, LOW);
+					break;
+				case 0:
+					digitalWrite (X_Pin, LOW);
+					break;
+				case 6:
+					digitalWrite (TLeft_Pin, LOW);
+					break;
+				case 7:
+					digitalWrite (TRight_Pin, LOW);
+					break;
+				case 4: 
+				case 5:
+					running = 0;
+					break;
+				default:
+					break;
+			}
+		}
+
+		if (ev.value == 0)
+		{
+			switch (ev.number)
+			{
+				case 8:
+					digitalWrite (Select_Pin, HIGH);
+					break;
+				case 9:
+					digitalWrite (Start_Pin, HIGH);
+					break;
+				case 2:
+					digitalWrite (B_Pin, HIGH);
+					break;
+				case 1:
+					digitalWrite (A_Pin, HIGH);
+					break;
+				case 3:
+					digitalWrite (Y_Pin, HIGH);
+					break;
+				case 0:
+					digitalWrite (X_Pin, HIGH);
+					break;
+				case 4:
+				case 6:
+					digitalWrite (TLeft_Pin, HIGH);
+					break;
+				case 5:
+				case 7:
+					digitalWrite (TRight_Pin, HIGH);
+					break;
+				default:
+					break;
+			}
+		}
+	}
+}
+
+void handle_exit (void)
+{
+	printf ("record_input %i\n", record_input);
+	if (record_input)
+	{
+		printf ("Writing to file %s\n", filename);
+		fclose(out_file);
+	}
+	else if (playback_input)
+		printf ("Finished playback\n");
+	
+}
+	
 void read_joystick (void)
 {
-	int fd;
-	struct js_event ev;
-	FILE *out_file;
 	int newpos = 0;
 	int oldpos = 0;
 	int current_latch = 0;
-	int running = 1;
 	int i;
 	if (playback_input)
 		fd = open(filename, O_RDONLY);
@@ -127,139 +265,9 @@ void read_joystick (void)
 		}
 		if (verbose)
 			printf("axis %d, button %d, value %d\n", ev.type, ev.number,ev.value);
-		//ev.number 0/1 = x/y
-		// Axis/Type 2 == dpad
-		if (ev.type == 2)
-		{
-			switch (ev.number)
-			{
-				// X axis
-				case 0:
-					if (ev.value > 0)
-					{
-						digitalWrite (Right_Pin, LOW);
-						digitalWrite (Left_Pin, HIGH);
-					}
-					else if (ev.value < 0)
-					{
-						digitalWrite (Left_Pin, LOW);
-						digitalWrite (Right_Pin, HIGH);
-					}
-					else
-					{
-						digitalWrite (Right_Pin, HIGH);
-						digitalWrite (Left_Pin, HIGH);
-					}
-					break;
-				//Y Axis
-				case 1:
-					if (ev.value > 0)
-					{
-						digitalWrite (Down_Pin, LOW);
-						digitalWrite (Up_Pin, HIGH);
-					}
-					else if (ev.value < 0)
-					{
-						digitalWrite (Up_Pin, LOW);
-						digitalWrite (Down_Pin, HIGH);
-					}
-					else
-					{
-						digitalWrite (Up_Pin, HIGH);
-						digitalWrite (Down_Pin, HIGH);
-					}
-					break;
-
-				default:
-					break;
-			}
-		}
-
-		// Axis/Type 1 == Buttons
-		if (ev.type == 1)
-		{
-			if (ev.value == 1)
-			{
-				switch (ev.number)
-				{
-					case 8:
-						digitalWrite (Select_Pin, LOW);
-						break;
-					case 9:
-						digitalWrite (Start_Pin, LOW);
-						break;
-					case 2:
-						digitalWrite (B_Pin, LOW);
-						delayMicroseconds (16);
-						break;
-					case 1:
-						digitalWrite (A_Pin, LOW);
-						break;
-					case 3:
-						digitalWrite (Y_Pin, LOW);
-						break;
-					case 0:
-						digitalWrite (X_Pin, LOW);
-						break;
-					case 6:
-						digitalWrite (TLeft_Pin, LOW);
-						break;
-					case 7:
-						digitalWrite (TRight_Pin, LOW);
-						break;
-					case 4: 
-					case 5:
-						running = 0;
-						break;
-					default:
-						break;
-				}
-			}
-
-		if (ev.value == 0)
-			{
-				switch (ev.number)
-				{
-					case 8:
-						digitalWrite (Select_Pin, HIGH);
-						break;
-					case 9:
-						digitalWrite (Start_Pin, HIGH);
-						break;
-					case 2:
-						digitalWrite (B_Pin, HIGH);
-						break;
-					case 1:
-						digitalWrite (A_Pin, HIGH);
-						break;
-					case 3:
-						digitalWrite (Y_Pin, HIGH);
-						break;
-					case 0:
-						digitalWrite (X_Pin, HIGH);
-						break;
-					case 4:
-					case 6:
-						digitalWrite (TLeft_Pin, HIGH);
-						break;
-					case 5:
-					case 7:
-						digitalWrite (TRight_Pin, HIGH);
-						break;
-					default:
-						break;
-				}
-			}
-		}
-	
+		write_joystick_gpio ();
 	}
-	if (record_input)
-	{
-		printf ("Writing to file %s\n", filename);
-		fclose(out_file);
-	}
-	else if (playback_input)
-		printf ("Finished playback\n");
+	handle_exit ();
 }
 
 void read_keyboard (void)
@@ -440,7 +448,7 @@ int main (int argc, char *argv[])
 					verbose = 1;
 					break;
 				case 'f':
-					filename = &argv[1][3];
+					filename = &argv[1][2];
 					break;
 				
 				case 'k':
@@ -478,15 +486,19 @@ int main (int argc, char *argv[])
 	
 	if (show_usage)
 	{
+		printf("Usage:\n");
+		printf("sudo snesbot [options] -f [filename]\n\n");
 		printf("Options:\n");
-		printf("-P	Use higher priority\n");
-		printf("-k	Read inputs from keyboard \n");
-		printf("-w	Wait for latch pulse before starting\n");
-		printf("-r	Record input\n");
-		printf("-f	read from/write to filename\n");
-		printf("-d	debug playback\n");
-		printf("-v	Verbose messages\n");
-		printf("-h	show this help\n");
+		printf(" -P	Use higher priority\n");
+		printf(" -k	Read inputs from keyboard \n");
+		printf(" -j	Read inputs from joystick \n");
+		printf(" -w	Wait for latch pulse before starting\n");
+		printf(" -r	Record input\n");
+		printf(" -p	Playback input\n");
+		printf(" -f	read from/write to filename (default: %s)\n", filename);
+		printf(" -d	debug playback (doesn't wait for SNES)\n");
+		printf(" -v	Verbose messages\n");
+		printf(" -h	show this help\n\n");
 		return 0;
 	}
 	
