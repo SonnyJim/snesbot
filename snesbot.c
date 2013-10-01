@@ -55,7 +55,7 @@ void sig_handler (int signo)
 	}
 }
 
-inline void clear_buttons (void)
+void clear_buttons (void)
 {
 	//Set all buttons to off ie HIGH
 	digitalWrite (B_Pin, HIGH);
@@ -81,10 +81,10 @@ void read_keyboard (void)
 	fd = open("/dev/input/event0", O_RDONLY);
 	read (fd, &ev, sizeof(struct input_event));
 	
-	clear_buttons ();
-	if (ev.type == 1)
+	printf ("type %i key %i value %i\n", ev.type, ev.code, ev.value);
+	//clear_buttons ();
+	if (ev.type == 1 && ev.value == 2)
 	{
-	//	printf ("key %i state %i\n", ev.code, ev.value);
 		switch (ev.code)
 		{
 			case KEY_UP:
@@ -120,6 +120,45 @@ void read_keyboard (void)
 				break;
 		}
 	}
+/*	
+	if (ev.value == 0)
+	{
+		switch (ev.code)
+		{
+			case KEY_UP:
+				digitalWrite (Up_Pin, HIGH);
+				break;
+			case KEY_DOWN:
+				digitalWrite (Down_Pin, HIGH);
+				break;
+			case KEY_LEFT:
+				digitalWrite (Left_Pin, HIGH);
+				break;
+			case KEY_RIGHT:
+				digitalWrite (Right_Pin, HIGH);
+				break;
+			case KEY_ENTER:
+				digitalWrite (Start_Pin, HIGH);
+				break;
+			case KEY_A:
+				digitalWrite (B_Pin, HIGH);
+			case KEY_S:
+				digitalWrite (A_Pin, HIGH);
+				break;
+			case KEY_Q:
+				digitalWrite (Y_Pin, HIGH);
+				break;
+			case KEY_W:
+				digitalWrite (X_Pin, HIGH);
+				break;
+			case KEY_RIGHTSHIFT:
+				digitalWrite (Select_Pin, HIGH);
+				break;
+			default:
+				break;
+		}
+	}
+	*/
 }
 
 
@@ -158,7 +197,7 @@ inline void load_sr (void)
 void latch_interrupt (void)
 {
 	// Wait 16 x 12us (192us) for SNES to read data from 4021s
-	delayMicroseconds (192);
+//	delayMicroseconds (192);
 	// Load up the 4021s with data
 	read_keyboard ();
 	//load_sr ();
@@ -173,7 +212,7 @@ void snesbot (void)
 {
 
 	setup_interrupts ();
-	
+	clear_buttons ();
 	printf("Waiting for first latch\n");
 	while (digitalRead (Latch_Pin) == 0);
 	
