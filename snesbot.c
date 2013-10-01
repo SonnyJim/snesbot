@@ -74,17 +74,17 @@ void clear_buttons (void)
 
 void read_keyboard (void)
 {
-
 	int fd;
-	struct input_event ev[64];
+	struct input_event ev[2];
+	
+	fd = open("/dev/input/event0", O_RDONLY);
 	for (;;)
 	{
-		fd = open("/dev/input/event0", O_RDONLY);
-		read (fd, &ev, sizeof(struct input_event) * 64);
+		read (fd, &ev, sizeof(struct input_event) * 2);
 		
 		//printf("type %d, code %d, value %d\n", ev[1].type, ev[1].code,ev[1].value);
 		
-		if (ev[1].type == 1 && ev[1].value == 1)
+		if (ev[1].value == 1)
 		{
 			switch (ev[1].code)
 			{
@@ -105,6 +105,7 @@ void read_keyboard (void)
 					break;
 				case KEY_A:
 					digitalWrite (B_Pin, LOW);
+					break;
 				case KEY_S:
 					digitalWrite (A_Pin, LOW);
 					break;
@@ -117,12 +118,18 @@ void read_keyboard (void)
 				case KEY_RIGHTSHIFT:
 					digitalWrite (Select_Pin, LOW);
 					break;
+				case KEY_1:
+					digitalWrite (TLeft_Pin, LOW);
+					break;
+				case KEY_2:
+					digitalWrite (TRight_Pin, LOW);
+					break;
 				default:
 					break;
 			}
 		}
 		
-		if (ev[1].type == 1 && ev[1].value == 0)
+		if (ev[1].value == 0)
 		{
 			switch (ev[1].code)
 			{
@@ -143,6 +150,7 @@ void read_keyboard (void)
 					break;
 				case KEY_A:
 					digitalWrite (B_Pin, HIGH);
+					break;
 				case KEY_S:
 					digitalWrite (A_Pin, HIGH);
 					break;
@@ -155,6 +163,13 @@ void read_keyboard (void)
 				case KEY_RIGHTSHIFT:
 					digitalWrite (Select_Pin, HIGH);
 					break;
+				case KEY_1:
+					digitalWrite (TLeft_Pin, HIGH);
+					break;
+				case KEY_2:
+					digitalWrite (TRight_Pin, HIGH);
+					break;
+
 				default:
 					break;
 			}
@@ -200,7 +215,6 @@ void latch_interrupt (void)
 	// Wait 16 x 12us (192us) for SNES to read data from 4021s
 //	delayMicroseconds (192);
 	// Load up the 4021s with data
-	//load_sr ();
 }
 
 void setup_interrupts (void)
@@ -218,11 +232,13 @@ void snesbot (void)
 	
 	printf("Go go SNESBot\n");
 	read_keyboard ();
+/*
 	for (;;)
 	{
 		signal (SIGINT, sig_handler);
 		delay (200);
 	}
+	*/
 }
 
 int main (int argc, char *argv[])
