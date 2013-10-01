@@ -1,49 +1,32 @@
-
 #include <wiringPi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
 #include <linux/input.h>
+#include <linux/joystick.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
-/* SNES Controller button to clock
-   Clock	Button
-   0		B
-   1		Y
-   2		Select
-   3		Start
-   4		Up
-   5		Down
-   6		Left
-   7		Right
-   8		A
-   9		X
-   10		L
-   11		R
-   12		Always High
-   13		Always High
-   14		Always High
-   15		Always High
-*/
+// 			WiringPi	P1 Pin
+#define B_Pin		 8 		// 3
+#define Y_Pin		 9 		// 5
+#define Select_Pin	 7 		// 7
+#define Start_Pin	 15 		// 8
+#define Up_Pin		 16 		// 10
+#define Down_Pin	 0 		// 11
+#define Left_Pin	 1 		// 12
+#define Right_Pin	 2 		// 13 Had a weird problem
+#define A_Pin		 3 		// 15
+#define X_Pin		 4 		// 16
+#define TLeft_Pin	 5 		// 18
+#define TRight_Pin	 12 		// 19
 
-// 	WiringPi	 	P1 Pin
-#define B_Pin		 8 	// 3
-#define Y_Pin		 9 	// 5
-#define Select_Pin	 7 	// 7
-#define Start_Pin	 15 	// 8
-#define Up_Pin		 16 	// 10
-#define Down_Pin	 0 	// 11
-#define Left_Pin	 1 	// 12
-#define Right_Pin	 2 	// 13 Had a weird problem
-#define A_Pin		 3 	// 15
-#define X_Pin		 4 	// 16
-#define TLeft_Pin	 5 	// 18
-#define TRight_Pin	 12 	// 19
+#define Latch_Pin	 13 		// 21
 
-#define Latch_Pin	 13 	// 21
+int keyboard_input = 0;
+int joystick_input = 0;
 
 void sig_handler (int signo)
 {
@@ -72,16 +55,140 @@ void clear_buttons (void)
 	digitalWrite (TRight_Pin, HIGH);
 }
 
+void read_joystick (void)
+{
+	int fd;
+	struct js_event ev;
+	
+	fd = open("/dev/input/js0", O_RDONLY);
+	
+	for (;;)
+	{
+		read (fd,&ev, sizeof(struct js_event));
+		
+	//	printf("ev0 axis %d, button %d, value %d\n", ev.type, ev.number,ev.value);
+		//ev.number 0/1 = x/y
+		// Axis/Type 2 == dpad
+		if (ev.type == 2)
+		{
+			switch (ev.number)
+			{
+				// X axis
+				case 0:
+					if (ev.value > 0)
+						digitalWrite (Right_Pin, LOW);
+					else if (ev.value < 0)
+						digitalWrite (Left_Pin, LOW);
+					else
+					{
+						digitalWrite (Right_Pin, HIGH);
+						digitalWrite (Left_Pin, HIGH);
+					}
+					break;
+				//Y Axis
+				case 1:
+					if (ev.value > 0)
+						digitalWrite (Down_Pin, LOW);
+					else if (ev.value < 0)
+						digitalWrite (Up_Pin, LOW);
+					else
+					{
+						digitalWrite (Up_Pin, HIGH);
+						digitalWrite (Down_Pin, HIGH);
+					}
+					break;
+
+				default:
+					break;
+			}
+		}
+
+		// Axis/Type 1 == Buttons
+		if (ev.type == 1)
+		{
+			if (ev.value == 1)
+			{
+				switch (ev.number)
+				{
+					case 8:
+						digitalWrite (Select_Pin, LOW);
+						break;
+					case 9:
+						digitalWrite (Start_Pin, LOW);
+						break;
+					case 2:
+						digitalWrite (B_Pin, LOW);
+						break;
+					case 1:
+						digitalWrite (A_Pin, LOW);
+						break;
+					case 3:
+						digitalWrite (Y_Pin, LOW);
+						break;
+					case 0:
+						digitalWrite (X_Pin, LOW);
+						break;
+					case 4:
+					case 6:
+						digitalWrite (TLeft_Pin, LOW);
+						break;
+					case 5:
+					case 7:
+						digitalWrite (TRight_Pin, LOW);
+						break;
+					default:
+						break;
+				}
+			}
+
+		if (ev.value == 0)
+			{
+				switch (ev.number)
+				{
+					case 8:
+						digitalWrite (Select_Pin, HIGH);
+						break;
+					case 9:
+						digitalWrite (Start_Pin, HIGH);
+						break;
+					case 2:
+						digitalWrite (B_Pin, HIGH);
+						break;
+					case 1:
+						digitalWrite (A_Pin, HIGH);
+						break;
+					case 3:
+						digitalWrite (Y_Pin, HIGH);
+						break;
+					case 0:
+						digitalWrite (X_Pin, HIGH);
+						break;
+					case 4:
+					case 6:
+						digitalWrite (TLeft_Pin, HIGH);
+						break;
+					case 5:
+					case 7:
+						digitalWrite (TRight_Pin, HIGH);
+						break;
+					default:
+						break;
+				}
+			}
+		}
+	}
+}
+
 void read_keyboard (void)
 {
 	int fd;
 	struct input_event ev[2];
-	
+
 	fd = open("/dev/input/event0", O_RDONLY);
+
 	for (;;)
 	{
 		read (fd, &ev, sizeof(struct input_event) * 2);
-		
 		//printf("type %d, code %d, value %d\n", ev[1].type, ev[1].code,ev[1].value);
 		
 		if (ev[1].value == 1)
@@ -224,28 +331,31 @@ void setup_interrupts (void)
 
 void snesbot (void)
 {
-
-	setup_interrupts ();
 	clear_buttons ();
-	printf("Waiting for first latch\n");
-	while (digitalRead (Latch_Pin) == 0);
+	setup_interrupts ();
+	
 	
 	printf("Go go SNESBot\n");
-	read_keyboard ();
-/*
-	for (;;)
+	if (keyboard_input)
 	{
-		signal (SIGINT, sig_handler);
-		delay (200);
+		printf("Reading input from keyboard\n");
+		read_keyboard ();
 	}
-	*/
+	else if (joystick_input)
+	{
+		printf("Reading input from joystick\n");
+		read_joystick ();
+	}
+
+	printf("Finished\n");
 }
 
 int main (int argc, char *argv[])
 {
 	int show_usage = 0;
 	int high_priority = 0;
-	
+	int wait_for_latch = 0;
+
 	printf("SNESBot v3\n");
 	while ((argc > 1) && (argv[1][0] == '-' ))
 	{
@@ -253,6 +363,14 @@ int main (int argc, char *argv[])
 			{
 				case 'p':
 				high_priority = 1;
+				break;
+				
+				case 'k':
+				keyboard_input = 1;
+				break;
+
+				case 'j':
+				joystick_input = 1;
 				break;
 
 				default:
@@ -269,6 +387,8 @@ int main (int argc, char *argv[])
 	{
 		printf("Options:\n");
 		printf("-p	Use higher priority\n");
+		printf("-k	Read inputs from keyboard \n");
+		printf("-w	Wait for latch pulse before starting\n");
 		printf("-h	show this help\n");
 		return 0;
 	}
@@ -279,7 +399,12 @@ int main (int argc, char *argv[])
 		piHiPri (10); sleep (1);
 	}
 	
-		
+	if (joystick_input && keyboard_input)
+	{
+		printf ("Choose only joystick OR keyboard input, not both\n");
+		return 1;
+	}
+
 	printf("Initialising GPIO\n");
 	if (init_gpio ())
 	{
@@ -287,8 +412,11 @@ int main (int argc, char *argv[])
 		return 1;
 	}
 
-	printf("Entering main loop\n");
-	
+	if (wait_for_latch)
+	{
+		printf("Waiting for first latch\n");
+		while (digitalRead (Latch_Pin) == 0);
+	}
 
 	//Main loop
 	snesbot ();
