@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <string.h>
 
 // 			WiringPi	P1 Pin
 #define B_Pin		 8 		// 3
@@ -32,15 +33,23 @@ int playback_input = 0;
 int verbose = 0;
 int debug_playback = 0;
 char *filename = "snesbot.rec";
+long filesize = 0;
 
 //Number of SNES latchs read by GPIO latch pin
 int latch_counter = 0;
 int running = 0;
 
+//Latency measurements
+int total_latency = 0;
+int drift = 0;
 
 int in_file;
-//FILE *out_file;
+//FILE *in_file;
 int out_file;
+//FILE *out_file;
+
+void *input_ptr;
+
 struct js_event ev;
 
 
@@ -202,61 +211,105 @@ void handle_exit (void)
 	if (record_input)
 	{
 		printf ("Writing to file %s\n", filename);
-		fsync (out_file);
-		//fclose(out_file);
+	//	fclose(out_file);
 		close(out_file);
 	}
 	else if (playback_input)
 	{
 		printf ("Finished playback\n");
-		close(in_file);
+		if (verbose)
+			printf ("Total latency %i\n", total_latency);
+		//fclose(in_file);
+		free (input_ptr);
+		//close(in_file);
 	}
 }
+
+long int read_input_file_size (void)
+{
+	FILE *input_file = fopen (filename, "rb");
+	fseek (input_file, 0, SEEK_END);
+	filesize = ftell(input_file);
+	fclose (input_file);
+	return filesize;
+}
+
+void read_file_into_mem (void)
+{
+	FILE *input_file = fopen (filename, "rb");
+	filesize = read_input_file_size ();
 	
+	input_ptr = malloc (filesize);
+	if (input_ptr == NULL)
+		printf("malloc of %lu bytes failed\n", filesize);
+	else
+		printf("malloc of %lu bytes succeeded\n", filesize);
+	fread (input_ptr, 1, filesize, input_file);
+	fclose (input_file);
+}
+
 void read_joystick (void)
 {
 	// Current playback latch
 	int playback_latch = 0;
-//	int i;
-	if (playback_input)
-		in_file = open(filename, O_RDONLY);
-	else	
-		in_file = open("/dev/input/js0", O_RDONLY);
 
+	//Whereabout in the playback file we are
+	int filepos = 0;
+	
+	if (playback_input)
+		read_file_into_mem ();
+	else	
+	{
+		in_file = open("/dev/input/js0", O_RDONLY);
+		if (in_file == -1)
+			printf ("Couldn't open /dev/input/js0\n");
+			return;
+	}
 	if (record_input)
 	{
+		int i;
 		out_file = open(filename, O_WRONLY | O_CREAT, 0664);
 		//out_file = fopen(filename, "w");
 		//Junk the first 18 reads from event queue?
-	//	for (i = 0; i < 18; i++)
-	//		read (in_file,&ev, sizeof(struct js_event));
+		for (i = 0; i < 18; i++)
+			//fread (&ev, 1, sizeof(struct js_event), in_file);
+			read (in_file, &ev, sizeof(struct js_event));
 	}
+	
 	//Start the SNES latch counter
 	setup_interrupts ();
 	
 	running = 1;	
 	while (running)
 	{
-		// Read inputs into ev struct
-		read (in_file,&ev, sizeof(struct js_event));
-
 		if (playback_input)
 		{
-			//Read when our next latch pulse is
-			//If 0 bytes read then we know we are EOF
-			if (read (in_file, &playback_latch, sizeof(int)) == 0)
+			//Copy evdev state and latch into vars
+			memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
+			memcpy (&playback_latch, input_ptr + sizeof(struct js_event) +(filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(int));
+			
+			//check to see if we are at the end
+			if (filepos * (sizeof(struct js_event) + sizeof(int)) >= filesize)	
 				running = 0;
-
+			
+			filepos++;
 			if (verbose)
 			{
 				printf ("Waiting for latch %i\n", playback_latch);
 				printf("Current SNES latch %i\n", latch_counter);
+				total_latency += (latch_counter - playback_latch);
+				drift = latch_counter - playback_latch;
 			}
 			//Wait for the correct SNES latch
-			while ((latch_counter < playback_latch) && !debug_playback)
+			while (((latch_counter)< playback_latch) && !debug_playback)
 				delayMicroseconds (1);
 		}
-		else if (record_input)
+		else 
+		// Read inputs into ev struct
+		read (in_file, &ev, sizeof(struct js_event));
+		//fread (&ev, 1, sizeof(struct js_event), input_ptr);
+		
+		if (record_input)
 		{
 			//Write input to file
 			write (out_file, &ev, sizeof(struct js_event));
@@ -269,10 +322,11 @@ void read_joystick (void)
 				printf("Latch counter %i\n", latch_counter);
 			}
 		}
-		if (verbose)
+		if (verbose && playback_input)
 		{
 			printf("axis %d, button %d, value %d\n", ev.type, ev.number,ev.value);
-			printf("Want latch %i, got latch %i\n", playback_latch, latch_counter);
+			printf("Wanted latch %i, got latch %i\n", playback_latch, latch_counter);
+			printf ("Drift %i\n", drift);
 		}
 		write_joystick_gpio ();
 	}
@@ -546,9 +600,9 @@ int main (int argc, char *argv[])
 	}
 	
 	if (record_input)
-		printf("Recording input to %s\n", filename);
+		printf("Record mode\n");
 	else if (playback_input)
-		printf("Playing back recorded input from %s\n", filename);
+		printf("Playback mode\n");
 	
 	printf("Initialising GPIO\n");
 	if (init_gpio ())
