@@ -209,12 +209,9 @@ void handle_exit (void)
 	
 void read_joystick (void)
 {
-	int newpos = 0;
-	int oldpos = 0;
-
 	// Current playback latch
 	int playback_latch = 0;
-	int i;
+//	int i;
 	if (playback_input)
 		in_file = open(filename, O_RDONLY);
 	else	
@@ -238,19 +235,16 @@ void read_joystick (void)
 
 		if (playback_input)
 		{
-			oldpos = newpos;
 			//Read when our next latch pulse is
-			read (in_file, &playback_latch, sizeof(int));
-			
-			//Check to see if we've reached EOF
-			newpos = lseek (in_file, 0, SEEK_CUR);
+			//If 0 bytes read then we know we are EOF
+			if (read (in_file, &playback_latch, sizeof(int)) == 0)
+				running = 0;
+
 			if (verbose)
 			{
 				printf ("Waiting for latch %i\n", playback_latch);
 				printf("Current SNES latch %i\n", latch_counter);
 			}
-			if (newpos == oldpos)
-				running = 0;
 			//Wait for the SNES latch
 			while ((latch_counter < playback_latch) && !debug_playback)
 				delayMicroseconds (1);
