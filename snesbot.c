@@ -262,8 +262,10 @@ void read_joystick (void)
 	{
 		in_file = open("/dev/input/js0", O_RDONLY);
 		if (in_file == -1)
+		{
 			printf ("Couldn't open /dev/input/js0\n");
 			return;
+		}
 	}
 	if (record_input)
 	{
