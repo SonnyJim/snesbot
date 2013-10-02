@@ -12,7 +12,7 @@ I tried a different approach, where I took a knock off SNES controller and tried
 
 I then tried my third approach, which was met with some success.  I duplicated the hardware inside of the SNES controller (2 x 4021 shift registers) and wired up the GPIO pins to that.  To my amazement it worked and passed the Nintendo Controller Test software.
 
-Currently it works with some games and not others.  I'm not sure why this is ahappening, as I'm pretty sure everything is wired up the same as a real controller.  Most if not all launch software works, most of the problems I am having are with carts that have security protection (SRAM/region checks), so there must be something I'm not doing quite correctly.
+I accidentally wired up the last 4 bits of the 2nd 4021 to GND rather than VCC, so some games would detect it wasn't an official controller, whoopsy daisy.
 
 Hardware required:
 
@@ -23,7 +23,6 @@ An old floppy cable or something to break out the GPIO pins
 
 TODO:
 
-Record and playback button presses
+Record and playback button presses (in progress)
 Netplay (depending on the RNG method used by each game)
 TAS video playback (again, depending on the RNG method used)
-
