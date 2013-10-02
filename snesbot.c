@@ -39,7 +39,8 @@ int running = 0;
 
 
 int in_file;
-FILE *out_file;
+//FILE *out_file;
+int out_file;
 struct js_event ev;
 
 
@@ -113,7 +114,7 @@ inline void write_joystick_gpio (void)
 					digitalWrite (Down_Pin, HIGH);
 				}
 				break;
-				default:
+			default:
 				break;
 			}
 	}
@@ -201,10 +202,15 @@ void handle_exit (void)
 	if (record_input)
 	{
 		printf ("Writing to file %s\n", filename);
-		fclose(out_file);
+		fsync (out_file);
+		//fclose(out_file);
+		close(out_file);
 	}
 	else if (playback_input)
+	{
 		printf ("Finished playback\n");
+		close(in_file);
+	}
 }
 	
 void read_joystick (void)
@@ -219,7 +225,8 @@ void read_joystick (void)
 
 	if (record_input)
 	{
-		out_file = fopen(filename, "w");
+		out_file = open(filename, O_WRONLY | O_CREAT, 0664);
+		//out_file = fopen(filename, "w");
 		//Junk the first 18 reads from event queue?
 	//	for (i = 0; i < 18; i++)
 	//		read (in_file,&ev, sizeof(struct js_event));
@@ -245,16 +252,18 @@ void read_joystick (void)
 				printf ("Waiting for latch %i\n", playback_latch);
 				printf("Current SNES latch %i\n", latch_counter);
 			}
-			//Wait for the SNES latch
+			//Wait for the correct SNES latch
 			while ((latch_counter < playback_latch) && !debug_playback)
 				delayMicroseconds (1);
 		}
 		else if (record_input)
 		{
 			//Write input to file
-			fwrite (&ev, 1, sizeof(struct js_event), out_file);
+			write (out_file, &ev, sizeof(struct js_event));
+			//fwrite (&ev, 1, sizeof(struct js_event), out_file);
 			//Write current latch to file
-			fwrite (&latch_counter, 1, sizeof(int), out_file);
+			write (out_file, &latch_counter, sizeof(int));
+			//fwrite (&latch_counter, 1, sizeof(int), out_file);
 			if (verbose)
 			{
 				printf("Latch counter %i\n", latch_counter);
