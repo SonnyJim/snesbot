@@ -18,7 +18,7 @@
 #define Up_Pin		 16 		// 10
 #define Down_Pin	 0 		// 11
 #define Left_Pin	 1 		// 12
-#define Right_Pin	 2 		// 13 Had a weird problem
+#define Right_Pin	 2 		// 13
 #define A_Pin		 3 		// 15
 #define X_Pin		 4 		// 16
 #define TLeft_Pin	 5 		// 18
@@ -39,19 +39,19 @@ long filesize = 0;
 int latch_counter = 0;
 int running = 0;
 
-//Latency measurements
+//Latency measurement
 int total_latency = 0;
-int drift = 0;
 
 int in_file;
-//FILE *in_file;
 int out_file;
-//FILE *out_file;
 
 void *input_ptr;
 
+//Joystick event structure
 struct js_event ev;
 
+// Current playback latch
+int playback_latch = 0;
 
 void latch_interrupt (void)
 {
@@ -80,7 +80,7 @@ void clear_buttons (void)
 	digitalWrite (TRight_Pin, HIGH);
 }
 
-inline void write_joystick_gpio (void)
+void write_joystick_gpio (void)
 {
 	// Axis/Type 2 == dpad
 	if (ev.type == 2)
@@ -208,51 +208,189 @@ inline void write_joystick_gpio (void)
 
 void handle_exit (void)
 {
+	if (!debug_playback)
+	{
+		printf ("Clearing buttons\n");
+		clear_buttons ();
+	}
+
 	if (record_input)
 	{
+		printf ("Finished recording\n");
 		printf ("Writing to file %s\n", filename);
-	//	fclose(out_file);
+		//close output file
 		close(out_file);
 	}
 	else if (playback_input)
 	{
 		printf ("Finished playback\n");
-		if (verbose)
-			printf ("Total latency %i\n", total_latency);
-		//fclose(in_file);
+	//	printf ("Latches missed %i\n", total_latency);
+		//free memory used by input file
 		free (input_ptr);
-		//close(in_file);
 	}
-}
 
-long int read_input_file_size (void)
-{
-	FILE *input_file = fopen (filename, "rb");
-	fseek (input_file, 0, SEEK_END);
-	filesize = ftell(input_file);
-	fclose (input_file);
-	return filesize;
+	if (joystick_input)
+	{
+		//close joystick 
+		close(in_file);
+	}
+
 }
 
 void read_file_into_mem (void)
 {
+	//Open the file
 	FILE *input_file = fopen (filename, "rb");
-	filesize = read_input_file_size ();
+
+	//Seek to the end
+	fseek (input_file, 0, SEEK_END);
+	//Find out how many bytes it is
+	filesize = ftell(input_file);
 	
+	//Rewind it back to the start reading for reading into memory
+	rewind (input_file);	
+	
+	//Allocate some memory
 	input_ptr = malloc (filesize);
 	if (input_ptr == NULL)
 		printf("malloc of %lu bytes failed\n", filesize);
 	else
 		printf("malloc of %lu bytes succeeded\n", filesize);
+	
+	//Read the input file into allocated memory
 	fread (input_ptr, 1, filesize, input_file);
+	//Close the input file, no longer needed
 	fclose (input_file);
 }
 
+void playback_joystick_inputs (void)
+{
+	
+	//Whereabouts in the playback file are we
+	int filepos = 0;
+
+	//Copy the input file into memory
+	read_file_into_mem ();
+	
+	//Start latch interrupt counter
+	setup_interrupts ();
+	
+	while (1)
+	{
+		//check to see if we are at the end of the input file
+		if (filepos * (sizeof(struct js_event) + sizeof(int)) >= filesize)
+			break;
+		//Copy evdev and latch state into vars
+		memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
+		memcpy (&playback_latch, input_ptr + sizeof(struct js_event) +(filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(int));
+		
+		filepos++;
+		//Wait for the correct SNES latch
+		while (((latch_counter + 1) < playback_latch))
+			delayMicroseconds (0);
+			
+		//total_latency += (latch_counter - playback_latch);
+		
+		//Write the vars to GPIO
+		write_joystick_gpio ();
+	}
+}
+
+void debug_playback_input (void)
+{
+	//Whereabout in the playback file we are
+	int filepos = 0;
+
+	//Copy the input file into memory
+	read_file_into_mem ();
+	
+	while (1)
+	{
+		//check to see if we are at the end of the input file
+		if (filepos * (sizeof(struct js_event) + sizeof(int)) >= filesize)
+			break;
+		//Copy evdev state and latch into vars
+		memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
+		memcpy (&playback_latch, input_ptr + sizeof(struct js_event) +(filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(int));
+		
+		filepos++;
+		//Print the values
+		printf("axis %d, button %d, value %d, latch %i\n", ev.type, ev.number,ev.value, playback_latch);
+	}
+
+}
+
+void record_joystick_inputs (void)
+{
+	int i;
+	
+	//Open joystick for reading
+	in_file = open("/dev/input/js0", O_RDONLY);
+	if (in_file == -1)
+	{
+		printf ("Couldn't open /dev/input/js0\n");
+		return;
+	}	
+
+	out_file = open(filename, O_WRONLY | O_CREAT, 0664);
+	if (out_file == -1)
+	{
+		printf ("Couldn't open %s for writing\n", filename);
+		return;
+	}
+	
+	//Junk the first 18 reads from event queue
+	//Pretty sure I don't need this as this is just the initial state
+	//of the joystick
+	//Not sure if I should be doing this, but hey ho...
+	for (i = 0; i < 18; i++)
+		read (in_file, &ev, sizeof(struct js_event));
+
+	//Start latch interrupt counter
+	setup_interrupts ();
+	running = 1;
+	while (running)
+	{
+		// Read joystick inputs into ev struct
+		read (in_file, &ev, sizeof(struct js_event));
+		//Write joystick inputs to file
+		write (out_file, &ev, sizeof(struct js_event));
+		//Write current latch to file
+		write (out_file, &latch_counter, sizeof(int));
+		if (verbose)
+		{
+			printf("Latch counter %i\n", latch_counter);
+		}
+		//Write the joystick vars to GPIO
+		write_joystick_gpio ();
+	}
+}
+
+void live_joystick_input (void)
+{	
+	//Open joystick for reading
+	in_file = open("/dev/input/js0", O_RDONLY);
+	if (in_file == -1)
+	{
+		printf ("Couldn't open /dev/input/js0\n");
+		return;
+	}
+
+	running = 1;	
+	while (running)
+	{
+		// Read joystick inputs into ev struct
+		read (in_file, &ev, sizeof(struct js_event));
+		//Write the joystick vars to GPIO
+		write_joystick_gpio ();
+	}
+}
+
+/*
 void read_joystick (void)
 {
 	// Current playback latch
 	int playback_latch = 0;
-
 	//Whereabout in the playback file we are
 	int filepos = 0;
 	
@@ -299,12 +437,12 @@ void read_joystick (void)
 			{
 				printf ("Waiting for latch %i\n", playback_latch);
 				printf("Current SNES latch %i\n", latch_counter);
-				total_latency += (latch_counter - playback_latch);
-				drift = latch_counter - playback_latch;
 			}
 			//Wait for the correct SNES latch
-			while (((latch_counter)< playback_latch) && !debug_playback)
-				delayMicroseconds (1);
+			while (((latch_counter + 2)< playback_latch) && !debug_playback)
+				delayMicroseconds (0);
+				
+			total_latency += (latch_counter - playback_latch);
 		}
 		else 
 		// Read inputs into ev struct
@@ -328,13 +466,11 @@ void read_joystick (void)
 		{
 			printf("axis %d, button %d, value %d\n", ev.type, ev.number,ev.value);
 			printf("Wanted latch %i, got latch %i\n", playback_latch, latch_counter);
-			printf ("Drift %i\n", drift);
 		}
 		write_joystick_gpio ();
 	}
-	handle_exit ();
 }
-
+*/
 void read_keyboard (void)
 {
 	int in_file;
@@ -482,14 +618,26 @@ void snesbot (void)
 	else if (joystick_input)
 	{
 		if (record_input)
+		{
 			printf ("Recording input to %s\n", filename);
+			record_joystick_inputs ();
+		}
 		else if (playback_input)
+		{
 			printf ("Playing back input from %s\n", filename);
+			playback_joystick_inputs ();
+		}
 		else
+		{
 			printf("Reading input from joystick\n");
-		read_joystick ();
+			live_joystick_input ();
+		}
 	}
-
+	else if (debug_playback)
+	{
+		debug_playback_input ();
+	}
+	handle_exit ();
 	printf("Exiting\n");
 }
 
@@ -505,7 +653,7 @@ void print_usage (void)
 	printf(" -r	Record input\n");
 	printf(" -p	Playback input\n");
 	printf(" -f	read from/write to filename (default: %s)\n", filename);
-	printf(" -d	debug playback (doesn't wait for SNES latch)\n");
+	printf(" -d	debug playback (doesn't write to GPIO)\n");
 	printf(" -v	Verbose messages\n");
 	printf(" -h	show this help\n\n");
 }
@@ -587,7 +735,7 @@ int main (int argc, char *argv[])
 		printf ("Choose only joystick OR keyboard input, not both\n");
 		return 1;
 	}
-	else if (!joystick_input && !keyboard_input)
+	else if (!joystick_input && !keyboard_input && !debug_playback)
 	{
 		print_usage ();
 		printf ("Choose either joystick (-j) or keyboard (-k) input\n");
@@ -601,16 +749,35 @@ int main (int argc, char *argv[])
 		return 1;
 	}
 	
+	if (record_input && keyboard_input)
+	{
+		printf("Recording from keyboard currently unsupported\n");
+		return 1;
+	}
+
+	if (debug_playback)
+	{
+		record_input = 0;
+		playback_input = 0;
+		joystick_input = 0;
+		keyboard_input = 0;
+	}
+
 	if (record_input)
 		printf("Record mode\n");
 	else if (playback_input)
 		printf("Playback mode\n");
-	
-	printf("Initialising GPIO\n");
-	if (init_gpio ())
+	else if (debug_playback)
+		printf("Debug playback mode\n");
+
+	if (!debug_playback)
 	{
-		printf ("Error initilising GPIO\n");
-		return 1;
+		printf("Initialising GPIO\n");
+		if (init_gpio ())
+		{
+			printf ("Error initilising GPIO\n");
+			return 1;
+		}
 	}
 
 	if (wait_for_latch && !debug_playback)
