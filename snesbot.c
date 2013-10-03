@@ -339,7 +339,7 @@ void playback_joystick_inputs (void)
 		
 		//Copy evdev and latch state into vars
 		memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
-		memcpy (&playback_latch, input_ptr + sizeof(struct js_event) +(filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(int));
+		memcpy (&playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
 		
 		filepos++;
 		//Wait for the correct SNES latch
@@ -391,14 +391,7 @@ void record_joystick_inputs (void)
 		printf ("Couldn't open /dev/input/js0\n");
 		return;
 	}	
-	/*
-	out_file = open(filename, O_WRONLY | O_CREAT, 0664);
-	if (out_file == -1)
-	{
-		printf ("Couldn't open %s for writing\n", filename);
-		return;
-	}
-	*/
+	
 	if (malloc_record_buffer () == 1)
 	{
 		printf("Problem allocating record buffer\n");
@@ -420,16 +413,10 @@ void record_joystick_inputs (void)
 	{
 		// Read joystick inputs into ev struct
 		read (in_file, &ev, sizeof(struct js_event));
-		/*
-		//Write joystick inputs to file
-		write (out_file, &ev, sizeof(struct js_event));
-		//Write current latch to file
-		write (out_file, &latch_counter, sizeof(int));
-		*/
 
 		//Copy ev struct and playback latch into record buffer
 		memcpy (output_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), &ev, sizeof(struct js_event));
-		memcpy (output_ptr + sizeof(struct js_event) +(filepos * (sizeof(struct js_event) + sizeof(int))), &playback_latch, sizeof(int));
+		memcpy (output_ptr + sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int))), &latch_counter, sizeof(int));
 
 		if (verbose)
 		{
