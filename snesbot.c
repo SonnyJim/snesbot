@@ -341,15 +341,12 @@ void playback_joystick_inputs (void)
 		memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
 		memcpy (&playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
 		
-		filepos++;
 		//Wait for the correct SNES latch
-		while (((latch_counter + 1) < playback_latch))
-			delayMicroseconds (0);
-			
-		//total_latency += (latch_counter - playback_latch);
-		
+		while ((latch_counter + 1) < playback_latch)
+			usleep (1);
 		//Write the vars to GPIO
 		write_joystick_gpio ();
+		filepos++;
 	}
 }
 
