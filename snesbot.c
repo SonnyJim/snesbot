@@ -45,13 +45,18 @@ int total_latency = 0;
 int in_file;
 int out_file;
 
+//Pointers to input/output memory
 void *input_ptr;
+void *output_ptr;
 
 //Joystick event structure
 struct js_event ev;
 
 // Current playback latch
 int playback_latch = 0;
+
+//Whereabout in the playback/record file we are
+int filepos = 0;
 
 void latch_interrupt (void)
 {
@@ -206,6 +211,84 @@ void write_joystick_gpio (void)
 	}
 }
 
+//Memory routines
+int malloc_record_buffer (void)
+{
+	//Allocate 16MB for recording file
+	output_ptr = malloc (1024 * 16);
+	if (output_ptr == NULL)
+	{
+		printf("Unable to allocate 16MB for record buffer\n");
+		return 1;
+	}
+	else
+		printf("16MB allocated for record buffer\n");
+	return 0;
+}
+
+int write_mem_into_file (void)
+{
+	//Open output file
+	FILE *output_file = fopen (filename, "wb");
+	
+	if (output_file == NULL)
+	{
+		printf("Problem opening %s for writing\n", filename);
+		return 1;
+	}
+
+	filesize = (sizeof(struct js_event) + sizeof(int)) * filepos;
+	printf ("Recorded %lu bytes\n", filesize);
+	/*
+	if (fwrite (output_file, 1, filesize, output_ptr) != filesize)
+	{
+		printf("Problem writing %lu bytes to %s\n", filesize, filename);
+		return 1;
+	}
+	*/
+	long result = fwrite (output_file, 1, filesize, output_ptr);
+	printf ("Wrote %lu bytes to %s\n", result, filename);
+
+	return 0;
+}
+
+int read_file_into_mem (void)
+{
+	//Open the file
+	FILE *input_file = fopen (filename, "rb");
+	
+	if (input_file == NULL)
+	{
+		printf ("Could not open %s for reading\n", filename);
+		return 1;
+	}
+
+	//Seek to the end
+	fseek (input_file, 0, SEEK_END);
+	//Find out how many bytes it is
+	filesize = ftell(input_file);
+	
+	//Rewind it back to the start ready for reading into memory
+	rewind (input_file);	
+	
+	//Allocate some memory
+	input_ptr = malloc (filesize);
+	if (input_ptr == NULL)
+	{
+		printf("malloc of %lu bytes failed\n", filesize);
+		return 1;
+	}
+	else
+		printf("malloc of %lu bytes succeeded\n", filesize);
+	
+	//Read the input file into allocated memory
+	fread (input_ptr, 1, filesize, input_file);
+	//Close the input file, no longer needed
+	fclose (input_file);
+	return 0;
+}
+
+
 void handle_exit (void)
 {
 	if (!debug_playback)
@@ -217,7 +300,11 @@ void handle_exit (void)
 	if (record_input)
 	{
 		printf ("Finished recording\n");
-		printf ("Writing to file %s\n", filename);
+		printf ("Writing memory contents to file %s\n", filename);
+		if (write_mem_into_file () == 1)
+			printf("Problem writing memory contents to file\n");
+		//free memory used by output file
+		free (output_ptr);
 		//close output file
 		close(out_file);
 	}
@@ -237,40 +324,17 @@ void handle_exit (void)
 
 }
 
-void read_file_into_mem (void)
-{
-	//Open the file
-	FILE *input_file = fopen (filename, "rb");
-
-	//Seek to the end
-	fseek (input_file, 0, SEEK_END);
-	//Find out how many bytes it is
-	filesize = ftell(input_file);
-	
-	//Rewind it back to the start reading for reading into memory
-	rewind (input_file);	
-	
-	//Allocate some memory
-	input_ptr = malloc (filesize);
-	if (input_ptr == NULL)
-		printf("malloc of %lu bytes failed\n", filesize);
-	else
-		printf("malloc of %lu bytes succeeded\n", filesize);
-	
-	//Read the input file into allocated memory
-	fread (input_ptr, 1, filesize, input_file);
-	//Close the input file, no longer needed
-	fclose (input_file);
-}
-
 void playback_joystick_inputs (void)
 {
-	
 	//Whereabouts in the playback file are we
 	int filepos = 0;
 
 	//Copy the input file into memory
-	read_file_into_mem ();
+	if (read_file_into_mem () == 1)
+	{
+		printf("Problem copying input file to memory\n");
+		return;
+	}
 	
 	//Start latch interrupt counter
 	setup_interrupts ();
@@ -280,6 +344,7 @@ void playback_joystick_inputs (void)
 		//check to see if we are at the end of the input file
 		if (filepos * (sizeof(struct js_event) + sizeof(int)) >= filesize)
 			break;
+		
 		//Copy evdev and latch state into vars
 		memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
 		memcpy (&playback_latch, input_ptr + sizeof(struct js_event) +(filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(int));
@@ -298,12 +363,15 @@ void playback_joystick_inputs (void)
 
 void debug_playback_input (void)
 {
-	//Whereabout in the playback file we are
-	int filepos = 0;
 
 	//Copy the input file into memory
-	read_file_into_mem ();
+	if (read_file_into_mem () == 1)
+	{
+		printf("Problem copying input file to memory\n");
+		return;
+	}
 	
+	filepos = 0;
 	while (1)
 	{
 		//check to see if we are at the end of the input file
@@ -324,21 +392,27 @@ void record_joystick_inputs (void)
 {
 	int i;
 	
-	//Open joystick for reading
+	//Open joystick device for reading
 	in_file = open("/dev/input/js0", O_RDONLY);
 	if (in_file == -1)
 	{
 		printf ("Couldn't open /dev/input/js0\n");
 		return;
 	}	
-
+	/*
 	out_file = open(filename, O_WRONLY | O_CREAT, 0664);
 	if (out_file == -1)
 	{
 		printf ("Couldn't open %s for writing\n", filename);
 		return;
 	}
-	
+	*/
+	if (malloc_record_buffer () == 1)
+	{
+		printf("Problem allocating record buffer\n");
+		return;
+	}
+
 	//Junk the first 18 reads from event queue
 	//Pretty sure I don't need this as this is just the initial state
 	//of the joystick
@@ -349,18 +423,28 @@ void record_joystick_inputs (void)
 	//Start latch interrupt counter
 	setup_interrupts ();
 	running = 1;
+	filepos = 0;
+	playback_latch = 0;
 	while (running)
 	{
 		// Read joystick inputs into ev struct
 		read (in_file, &ev, sizeof(struct js_event));
+		/*
 		//Write joystick inputs to file
 		write (out_file, &ev, sizeof(struct js_event));
 		//Write current latch to file
 		write (out_file, &latch_counter, sizeof(int));
+		*/
+
+		//Copy ev struct into record buffer
+		memcpy (output_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), &ev, sizeof(struct js_event));
+		memcpy (output_ptr + sizeof(struct js_event) +(filepos * (sizeof(struct js_event) + sizeof(int))), &playback_latch, sizeof(int));
+
 		if (verbose)
 		{
 			printf("Latch counter %i\n", latch_counter);
 		}
+		filepos++;
 		//Write the joystick vars to GPIO
 		write_joystick_gpio ();
 	}
