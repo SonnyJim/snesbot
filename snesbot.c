@@ -229,7 +229,7 @@ int malloc_record_buffer (void)
 int write_mem_into_file (void)
 {
 	//Open output file
-	FILE *output_file = fopen (filename, "wb");
+	FILE *output_file = fopen (filename, "w");
 	
 	if (output_file == NULL)
 	{
@@ -239,16 +239,8 @@ int write_mem_into_file (void)
 
 	filesize = (sizeof(struct js_event) + sizeof(int)) * filepos;
 	printf ("Recorded %lu bytes\n", filesize);
-	/*
-	if (fwrite (output_file, 1, filesize, output_ptr) != filesize)
-	{
-		printf("Problem writing %lu bytes to %s\n", filesize, filename);
-		return 1;
-	}
-	*/
-	long result = fwrite (output_file, 1, filesize, output_ptr);
+	long result = fwrite (output_ptr, 1, filesize, output_file);
 	printf ("Wrote %lu bytes to %s\n", result, filename);
-
 	return 0;
 }
 
@@ -414,9 +406,8 @@ void record_joystick_inputs (void)
 	}
 
 	//Junk the first 18 reads from event queue
-	//Pretty sure I don't need this as this is just the initial state
-	//of the joystick
-	//Not sure if I should be doing this, but hey ho...
+	//Pretty sure I don't need this as it is just the initial state
+	//of the joystick, which will be set by clear_buttons anyway.
 	for (i = 0; i < 18; i++)
 		read (in_file, &ev, sizeof(struct js_event));
 
@@ -436,7 +427,7 @@ void record_joystick_inputs (void)
 		write (out_file, &latch_counter, sizeof(int));
 		*/
 
-		//Copy ev struct into record buffer
+		//Copy ev struct and playback latch into record buffer
 		memcpy (output_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), &ev, sizeof(struct js_event));
 		memcpy (output_ptr + sizeof(struct js_event) +(filepos * (sizeof(struct js_event) + sizeof(int))), &playback_latch, sizeof(int));
 
