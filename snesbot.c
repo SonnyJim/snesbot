@@ -37,6 +37,9 @@ long filesize = 0;
 //Number of SNES latches read by GPIO latch pin
 int latch_counter = 0;
 
+//Handle when we get more than one event on the same latch
+int old_latch = 0;
+
 int running = 0;
 
 //Latency measurement
@@ -89,7 +92,11 @@ void clear_buttons (void)
 
 void print_joystick_input (void)
 {
-	printf ("%i ", playback_latch);
+	if (old_latch != playback_latch)
+		printf ("\n%i ", playback_latch);
+	else
+		printf (" + ");
+	
 	// Axis/Type 2 == dpad
 	if (ev.type == 2)
 	{
@@ -99,30 +106,30 @@ void print_joystick_input (void)
 			case 0:
 				if (ev.value > 0)
 				{
-					printf ("Right\n");
+					printf ("Right");
 				}
 				else if (ev.value < 0)
 				{
-					printf ("Left\n");
+					printf ("Left");
 				}
 				else
 				{
-					printf ("Centre X\n");
+					printf ("Centre X");
 				}
 				break;
 			//Y Axis
 			case 1:
 				if (ev.value > 0)
 				{
-					printf ("Down\n");
+					printf ("Down");
 				}
 				else if (ev.value < 0)
 				{
-					printf ("Up\n");
+					printf ("Up");
 				}
 				else
 				{
-					printf ("Centre Y\n");
+					printf ("Centre Y");
 				}
 				break;
 			default:
@@ -138,37 +145,38 @@ void print_joystick_input (void)
 			switch (ev.number)
 			{
 				case 8:
-					printf ("Select pressed\n");
+					printf ("Select");
 					break;
 				case 9:
-					printf ("Start pressed\n");
+					printf ("Start");
 					break;
 				case 2:
-					printf("B pressed\n");
+					printf("B");
 					break;
 				case 1:
-					printf ("A pressed\n");
+					printf ("A");
 					break;
 				case 3:
-					printf ("Y pressed\n");
+					printf ("Y");
 					break;
 				case 0:
-					printf ("X pressed\n");
+					printf ("X");
 					break;
 				case 6:
-					printf ("TL pressed\n");
+					printf ("TL");
 					break;
 				case 7:
-					printf ("TR pressed\n");
+					printf ("TR");
 					break;
 				case 4: 
 				case 5:
-					printf ("Exit pressed\n");
+					printf ("Exit");
 					running = 0;
 					break;
 				default:
 					break;
 			}
+			printf (" pressed ");
 		}
 		// 0 = OFF/GPIO HIGH
 		if (ev.value == 0)
@@ -176,36 +184,38 @@ void print_joystick_input (void)
 			switch (ev.number)
 			{
 				case 8:
-					printf ("Select released\n");
+					printf ("Select");
 					break;
 				case 9:
-					printf ("Start released\n");
+					printf ("Start");
 					break;
 				case 2:
-					printf ("B released\n");
+					printf ("B");
 					break;
 				case 1:
-					printf ("A released\n");
+					printf ("A");
 					break;
 				case 3:
-					printf ("Y released\n");
+					printf ("Y");
 					break;
 				case 0:
-					printf ("X released\n");
+					printf ("X");
 					break;
 				case 4:
 				case 6:
-					printf ("TL released\n");
+					printf ("TL");
 					break;
 				case 5:
 				case 7:
-					printf ("TR released\n");
+					printf ("TR");
 					break;
 				default:
 					break;
 			}
+			printf (" released");
 		}
 	}
+	old_latch = playback_latch;
 }
 
 
@@ -449,13 +459,12 @@ void playback_joystick_inputs (void)
 		return;
 	}
 
-	//Handle when we get more than one event on the same latch
-	int old_latch = 0;
 	filepos = 0;
 	int drift = 0;
 	// Precalculate end of file position
 	int filepos_end = filesize / (sizeof(struct js_event) + sizeof(int));
-	printf ("filepos_end %i\n", filepos_end);
+	//printf ("filepos_end %i\n", filepos_end);
+	
 	//Start latch interrupt counter
 	setup_interrupts ();
 	while (1)
@@ -495,7 +504,7 @@ void debug_playback_input (void)
 	}
 	
 	int filepos_end = filesize / (sizeof(struct js_event) + sizeof(int));
-	printf ("filepos_end %i\n", filepos_end);
+	//printf ("filepos_end %i\n", filepos_end);
 	filepos = 0;
 	while (1)
 	{
