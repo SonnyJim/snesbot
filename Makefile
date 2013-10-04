@@ -41,4 +41,4 @@ snestest: snestest.o
 	@$(CC) -o $@ snestest.o $(LDFLAGS) $(LDLIBS)
 
 clean:
-	rm snesbot.o snesbot
+	rm snesbot.o snesbot snestest.o snestest
