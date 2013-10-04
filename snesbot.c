@@ -1,12 +1,9 @@
 #include <wiringPi.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <signal.h>
 #include <unistd.h>
 #include <linux/input.h>
 #include <linux/joystick.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
 
@@ -26,7 +23,7 @@
 
 #define Latch_Pin	 13 		// 21
 
-#define RECBUFSIZE	1024 * 16
+#define RECBUFSIZE	1024 * 16 //Set record buffer to 16MB
 
 int keyboard_input = 0;
 int joystick_input = 0;
@@ -54,13 +51,13 @@ FILE *js_dev;
 void *input_ptr;
 void *output_ptr;
 
-//Joystick event structure
-struct js_event ev;
+//Joystick evdev structure
+static struct js_event ev;
 
 // Current playback latch
-int playback_latch = 0;
+static int playback_latch = 0;
 
-//Whereabout in the playback/record file we are
+//Whereabouts in the playback/record file we are
 int filepos = 0;
 
 void latch_interrupt (void)
@@ -153,7 +150,6 @@ void write_joystick_gpio (void)
 					break;
 				case 2:
 					digitalWrite (B_Pin, LOW);
-					delayMicroseconds (16);
 					break;
 				case 1:
 					digitalWrite (A_Pin, LOW);
@@ -219,7 +215,7 @@ void write_joystick_gpio (void)
 //Memory routines
 int malloc_record_buffer (void)
 {
-	//Allocate 16MB for recording file
+	//Allocate memory for recorded inputs
 	output_ptr = malloc (RECBUFSIZE);
 	if (output_ptr == NULL)
 	{
@@ -309,6 +305,8 @@ void handle_exit (void)
 	else if (playback_input)
 	{
 		printf ("Finished playback\n");
+		if (verbose)
+			printf("Total latency %i\n", total_latency);
 		//Free memory used by input file
 		free (input_ptr);
 	}
@@ -328,28 +326,39 @@ void playback_joystick_inputs (void)
 		printf("Problem copying input file to memory\n");
 		return;
 	}
-	
-	
+
+	//Handle when we get more than one event on the same latch
+	int old_latch = 0;
 	filepos = 0;
+	int drift = 0;
+	// Precalculate end of file position
+	int filepos_end = filesize / (sizeof(struct js_event) + sizeof(int));
+	printf ("filepos_end %i\n", filepos_end);
 	//Start latch interrupt counter
 	setup_interrupts ();
-	
 	while (1)
 	{
 		//Copy evdev and latch state into vars
 		memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
 		memcpy (&playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
 		
+		//printf ("Waiting for latch %i\n", playback_latch);
 		//Wait for the correct SNES latch
-		while ((latch_counter) < playback_latch)
-			usleep (0);
+		while ((latch_counter < playback_latch) &&
+				(old_latch != playback_latch))
+				usleep (1);
+		old_latch = playback_latch;
+		if (verbose)
+		{
+			total_latency += latch_counter - playback_latch;
+			//printf ("Drift %i\n", drift);
+			//printf("axis %d, button %d, value %d, latch %i\n", ev.type, ev.number,ev.value, playback_latch);
+		}
 		//Write the vars to GPIO
 		write_joystick_gpio ();
-		
 		//check to see if we are at the end of the input file
-		if (filepos * (sizeof(struct js_event) + sizeof(int)) >= filesize)
+		if (filepos++ == filepos_end)	
 			break;
-		filepos++;
 	}
 }
 
@@ -363,19 +372,21 @@ void debug_playback_input (void)
 		return;
 	}
 	
+	int filepos_end = filesize / (sizeof(struct js_event) + sizeof(int));
+	printf ("filepos_end %i\n", filepos_end);
 	filepos = 0;
 	while (1)
 	{
-		//check to see if we are at the end of the input file
-		if (filepos * (sizeof(struct js_event) + sizeof(int)) >= filesize)
-			break;
 		//Copy evdev state and latch into vars
 		memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
 		memcpy (&playback_latch, input_ptr + sizeof(struct js_event) +(filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(int));
 		
-		filepos++;
 		//Print the values
 		printf("axis %d, button %d, value %d, latch %i\n", ev.type, ev.number,ev.value, playback_latch);
+		printf ("filepos %i\n", filepos);
+		//check to see if we are at the end of the input file
+		if (filepos++ == filepos_end)	
+			break;
 	}
 
 }
@@ -704,7 +715,7 @@ int main (int argc, char *argv[])
 	if (high_priority)
 	{	// Set priority
 		printf("Setting high priority\n");
-		piHiPri (10); sleep (1);
+		piHiPri (50); sleep (1);
 	}
 	
 	if (joystick_input && keyboard_input)
