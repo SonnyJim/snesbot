@@ -114,7 +114,7 @@ void print_joystick_input (void)
 				}
 				else
 				{
-					printf ("Centre X");
+					printf ("X Centred");
 				}
 				break;
 			//Y Axis
@@ -129,7 +129,7 @@ void print_joystick_input (void)
 				}
 				else
 				{
-					printf ("Centre Y");
+					printf ("Y Centred");
 				}
 				break;
 			default:
@@ -514,13 +514,11 @@ void debug_playback_input (void)
 		
 		//Print the values
 		print_joystick_input ();
-	//	printf("axis %d, button %d, value %d, latch %i\n", ev.type, ev.number,ev.value, playback_latch);
 	//	printf ("filepos %i\n", filepos);
 		//check to see if we are at the end of the input file
 		if (++filepos == filepos_end)	
 			break;
 	}
-
 }
 
 int open_joystick_dev (void)
