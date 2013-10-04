@@ -5,25 +5,62 @@
 #include <signal.h>
 #include <unistd.h>
 
-//Using wiringPi numbering
-#define clockPin 9
-#define latchPin 13
-#define dataPin 12
+//                      WiringPi        P1 Pin
+#define B_Pin            8              // 3
+#define Y_Pin            9              // 5
+#define Select_Pin       7              // 7
+#define Start_Pin        15             // 8
+#define Up_Pin           16             // 10
+#define Down_Pin         0              // 11
+#define Left_Pin         1              // 12
+#define Right_Pin        2              // 13
+#define A_Pin            3              // 15
+#define X_Pin            4              // 16
+#define TLeft_Pin        5              // 18
+#define TRight_Pin       12             // 19
 
-float clocked = 0;
+#define latchPin 13
+
 float latched = 0;
 int interrupts_enabled = 0;
+
+void clear_buttons (void)
+{
+        //Set all buttons to off ie HIGH
+        digitalWrite (B_Pin, HIGH);
+        digitalWrite (Y_Pin, HIGH);
+        digitalWrite (Select_Pin, HIGH);
+        digitalWrite (Start_Pin, HIGH);
+        digitalWrite (Up_Pin, HIGH);
+        digitalWrite (Down_Pin, HIGH);
+        digitalWrite (Left_Pin, HIGH);
+        digitalWrite (Right_Pin, HIGH);
+        digitalWrite (A_Pin, HIGH);
+        digitalWrite (X_Pin, HIGH);
+        digitalWrite (TLeft_Pin, HIGH);
+        digitalWrite (TRight_Pin, HIGH);
+}
 
 int init_gpio (void)
 {
 	if (wiringPiSetup () == -1)
 		return 1;
 	//Set up pins
-//	pinMode (clockPin, INPUT);
 	pinMode (latchPin, INPUT);
 	
-//	pinMode (dataPin, OUTPUT);
-//	digitalWrite (dataPin, 0);
+	pinMode (B_Pin, OUTPUT);
+	pinMode (Y_Pin, OUTPUT);
+	pinMode (Select_Pin, OUTPUT);
+	pinMode (Start_Pin, OUTPUT);
+	pinMode (Up_Pin, OUTPUT);
+	pinMode (Down_Pin, OUTPUT);
+	pinMode (Left_Pin, OUTPUT);
+	pinMode (Right_Pin, OUTPUT);
+	pinMode (A_Pin, OUTPUT);
+	pinMode (X_Pin, OUTPUT);
+	pinMode (TLeft_Pin, OUTPUT);
+	pinMode (TRight_Pin, OUTPUT);
+	clear_buttons ();
 	return 0;
 }
 
@@ -33,18 +70,9 @@ void latchPin_interrupt (void)
 		latched++;
 }
 
-
-
-void clockPin_interrupt (void)
-{
-	if (interrupts_enabled)
-		clocked++;
-}
-
 void setup_interrupts (void)
 {
 	wiringPiISR (latchPin, INT_EDGE_RISING, &latchPin_interrupt);
-//	wiringPiISR (clockPin, INT_EDGE_FALLING, &clockPin_interrupt);
 }
 void read_interrupts (void)
 {
