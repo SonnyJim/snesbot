@@ -87,6 +87,128 @@ void clear_buttons (void)
 	digitalWrite (TRight_Pin, HIGH);
 }
 
+void print_joystick_input (void)
+{
+	printf ("%i ", playback_latch);
+	// Axis/Type 2 == dpad
+	if (ev.type == 2)
+	{
+		switch (ev.number)
+		{
+			// X axis
+			case 0:
+				if (ev.value > 0)
+				{
+					printf ("Right\n");
+				}
+				else if (ev.value < 0)
+				{
+					printf ("Left\n");
+				}
+				else
+				{
+					printf ("Centre X\n");
+				}
+				break;
+			//Y Axis
+			case 1:
+				if (ev.value > 0)
+				{
+					printf ("Down\n");
+				}
+				else if (ev.value < 0)
+				{
+					printf ("Up\n");
+				}
+				else
+				{
+					printf ("Centre Y\n");
+				}
+				break;
+			default:
+				break;
+			}
+	}
+	// Axis/Type 1 == Buttons
+	if (ev.type == 1)
+	{
+		// 1 = ON/GPIO LOW
+		if (ev.value == 1)
+		{
+			switch (ev.number)
+			{
+				case 8:
+					printf ("Select pressed\n");
+					break;
+				case 9:
+					printf ("Start pressed\n");
+					break;
+				case 2:
+					printf("B pressed\n");
+					break;
+				case 1:
+					printf ("A pressed\n");
+					break;
+				case 3:
+					printf ("Y pressed\n");
+					break;
+				case 0:
+					printf ("X pressed\n");
+					break;
+				case 6:
+					printf ("TL pressed\n");
+					break;
+				case 7:
+					printf ("TR pressed\n");
+					break;
+				case 4: 
+				case 5:
+					printf ("Exit pressed\n");
+					running = 0;
+					break;
+				default:
+					break;
+			}
+		}
+		// 0 = OFF/GPIO HIGH
+		if (ev.value == 0)
+		{
+			switch (ev.number)
+			{
+				case 8:
+					printf ("Select released\n");
+					break;
+				case 9:
+					printf ("Start released\n");
+					break;
+				case 2:
+					printf ("B released\n");
+					break;
+				case 1:
+					printf ("A released\n");
+					break;
+				case 3:
+					printf ("Y released\n");
+					break;
+				case 0:
+					printf ("X released\n");
+					break;
+				case 4:
+				case 6:
+					printf ("TL released\n");
+					break;
+				case 5:
+				case 7:
+					printf ("TR released\n");
+					break;
+				default:
+					break;
+			}
+		}
+	}
+}
+
+
 void write_joystick_gpio (void)
 {
 	// Axis/Type 2 == dpad
@@ -357,7 +479,7 @@ void playback_joystick_inputs (void)
 		//Write the vars to GPIO
 		write_joystick_gpio ();
 		//check to see if we are at the end of the input file
-		if (filepos++ == filepos_end)	
+		if (++filepos == filepos_end)	
 			break;
 	}
 }
@@ -382,10 +504,11 @@ void debug_playback_input (void)
 		memcpy (&playback_latch, input_ptr + sizeof(struct js_event) +(filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(int));
 		
 		//Print the values
-		printf("axis %d, button %d, value %d, latch %i\n", ev.type, ev.number,ev.value, playback_latch);
-		printf ("filepos %i\n", filepos);
+		print_joystick_input ();
+	//	printf("axis %d, button %d, value %d, latch %i\n", ev.type, ev.number,ev.value, playback_latch);
+	//	printf ("filepos %i\n", filepos);
 		//check to see if we are at the end of the input file
-		if (filepos++ == filepos_end)	
+		if (++filepos == filepos_end)	
 			break;
 	}
 
@@ -431,14 +554,15 @@ void record_joystick_inputs (void)
 	{
 		// Read joystick inputs into ev struct
 		fread (&ev, 1, sizeof(struct js_event), js_dev);
-
+		
 		//Copy ev struct and playback latch into record buffer
 		memcpy (output_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), &ev, sizeof(struct js_event));
 		memcpy (output_ptr + sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int))), &latch_counter, sizeof(int));
-
-		filepos++;
+		
 		//Write the joystick vars to GPIO
 		write_joystick_gpio ();
+
+		filepos++;
 	}
 }
 
@@ -715,7 +839,7 @@ int main (int argc, char *argv[])
 	if (high_priority)
 	{	// Set priority
 		printf("Setting high priority\n");
-		piHiPri (50); sleep (1);
+		piHiPri (40); sleep (1);
 	}
 	
 	if (joystick_input && keyboard_input)
