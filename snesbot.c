@@ -225,14 +225,14 @@ void write_joystick_gpio (void)
 				if (ev.value > 0)
 				{
 					digitalWrite (Right_Pin, LOW);
-					digitalWrite (Left_Pin, HIGH);
+				//	digitalWrite (Left_Pin, HIGH);
 				}
 				else if (ev.value < 0)
 				{
 					digitalWrite (Left_Pin, LOW);
-					digitalWrite (Right_Pin, HIGH);
+				//	digitalWrite (Right_Pin, HIGH);
 				}
-				else
+				else if (ev.value == 0)
 				{
 					digitalWrite (Right_Pin, HIGH);
 					digitalWrite (Left_Pin, HIGH);
@@ -243,14 +243,14 @@ void write_joystick_gpio (void)
 				if (ev.value > 0)
 				{
 					digitalWrite (Down_Pin, LOW);
-					digitalWrite (Up_Pin, HIGH);
+					//digitalWrite (Up_Pin, HIGH);
 				}
 				else if (ev.value < 0)
 				{
 					digitalWrite (Up_Pin, LOW);
-					digitalWrite (Down_Pin, HIGH);
+					//digitalWrite (Down_Pin, HIGH);
 				}
-				else
+				else if (ev.value == 0)
 				{
 					digitalWrite (Up_Pin, HIGH);
 					digitalWrite (Down_Pin, HIGH);
@@ -467,7 +467,8 @@ void playback_interrupt (void)
 	
 		//Copy the next playback_latch into var
 		memcpy (&next_playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
-		
+	
+		//Handle more than one event on the same latch
 		while (next_playback_latch == latch_counter)
 		{
 			memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
@@ -653,6 +654,8 @@ void live_joystick_input (void)
 	{
 		// Read joystick inputs into ev struct
 		fread (&ev, 1, sizeof(struct js_event), js_dev);
+		if (verbose)
+			printf("axis %d, button %d, value %d, latch %i\n", ev.type, ev.number,ev.value, playback_latch);
 		//Write the joystick vars to GPIO
 		write_joystick_gpio ();
 	}
