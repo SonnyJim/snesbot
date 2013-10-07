@@ -32,7 +32,6 @@ int playback_input = 0;
 int verbose = 0;
 int debug_playback = 0;
 char *filename = "snesbot.rec";
-long filesize = 0;
 
 //Number of SNES latches read by GPIO latch pin
 int latch_counter = 0;
@@ -57,21 +56,16 @@ void *output_ptr;
 //Joystick evdev structure
 static struct js_event ev;
 
-// Current playback latch
+// Current and next playback latch
 static int playback_latch = 0;
+static int next_playback_latch = 0;
 
 //Whereabouts in the playback/record file we are
 int filepos = 0;
-
-void latch_interrupt (void)
-{
-	latch_counter++;
-}
-
-void setup_interrupts (void)
-{
-	wiringPiISR (Latch_Pin, INT_EDGE_RISING, &latch_interrupt);
-}
+// Where the end of the playback file is
+int filepos_end = 0;
+// How big (in bytes) the playback/record file is
+long filesize = 0;
 
 void clear_buttons (void)
 {
@@ -450,6 +444,78 @@ void handle_exit (void)
 
 }
 
+void playback_interrupt (void)
+{
+	if (!running)
+		return;
+		
+	latch_counter++;
+
+	if (filepos == filepos_end)
+		running = 0;
+
+	//Copy evdev and latch state into vars
+	memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
+	memcpy (&playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
+
+
+	if (playback_latch <= latch_counter)
+	{
+		printf ("Want latch %i, got latch %i\n", playback_latch, latch_counter);
+		write_joystick_gpio ();
+		filepos++;
+	
+		//Copy the next playback_latch into var
+		memcpy (&next_playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
+		
+		while (next_playback_latch == latch_counter)
+		{
+			memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
+			
+			write_joystick_gpio ();
+			filepos++;
+			
+			memcpy (&next_playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
+		}
+	}
+}
+
+
+void latch_interrupt (void)
+{
+	latch_counter++;
+}
+
+void setup_interrupts (void)
+{
+	if (playback_input)
+		wiringPiISR (Latch_Pin, INT_EDGE_RISING, &playback_interrupt);
+	else if (record_input)
+		wiringPiISR (Latch_Pin, INT_EDGE_RISING, &latch_interrupt);
+}
+
+void start_playback (void)
+{	
+	//Copy the input file into memory
+	if (read_file_into_mem () == 1)
+	{
+		printf("Problem copying input file to memory\n");
+		return;
+	}
+	else
+	{
+		// Precalculate end of file position
+		filepos_end = filesize / (sizeof(struct js_event) + sizeof(int));
+		filepos = 0;
+		running = 1;
+		setup_interrupts ();
+		
+		//Wait for file to finish playback
+		while (running)
+			sleep (1);
+	}
+}
+
 void playback_joystick_inputs (void)
 {
 	//Copy the input file into memory
@@ -702,6 +768,7 @@ void read_keyboard (void)
 }
 
 
+
 int init_gpio (void)
 {
 	if (wiringPiSetup () == -1)
@@ -745,7 +812,8 @@ void snesbot (void)
 		else if (playback_input)
 		{
 			printf ("Playing back input from %s\n", filename);
-			playback_joystick_inputs ();
+			start_playback ();
+			//playback_joystick_inputs ();
 		}
 		else
 		{
