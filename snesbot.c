@@ -225,14 +225,14 @@ void write_joystick_gpio (void)
 				if (ev.value > 0)
 				{
 					digitalWrite (Right_Pin, LOW);
-				//	digitalWrite (Left_Pin, HIGH);
+					digitalWrite (Left_Pin, HIGH);
 				}
 				else if (ev.value < 0)
 				{
 					digitalWrite (Left_Pin, LOW);
-				//	digitalWrite (Right_Pin, HIGH);
+					digitalWrite (Right_Pin, HIGH);
 				}
-				else if (ev.value == 0)
+				else
 				{
 					digitalWrite (Right_Pin, HIGH);
 					digitalWrite (Left_Pin, HIGH);
@@ -243,14 +243,14 @@ void write_joystick_gpio (void)
 				if (ev.value > 0)
 				{
 					digitalWrite (Down_Pin, LOW);
-					//digitalWrite (Up_Pin, HIGH);
+					digitalWrite (Up_Pin, HIGH);
 				}
 				else if (ev.value < 0)
 				{
 					digitalWrite (Up_Pin, LOW);
-					//digitalWrite (Down_Pin, HIGH);
+					digitalWrite (Down_Pin, HIGH);
 				}
-				else if (ev.value == 0)
+				else
 				{
 					digitalWrite (Up_Pin, HIGH);
 					digitalWrite (Down_Pin, HIGH);
@@ -461,7 +461,7 @@ void playback_interrupt (void)
 
 	if (playback_latch <= latch_counter)
 	{
-		printf ("Want latch %i, got latch %i\n", playback_latch, latch_counter);
+		//printf ("Want latch %i, got latch %i\n", playback_latch, latch_counter);
 		write_joystick_gpio ();
 		filepos++;
 	
@@ -517,6 +517,12 @@ void start_playback (void)
 	}
 }
 
+// Precalculate end of file position
+void calc_eof_position (void)
+{
+	filepos_end = filesize / (sizeof(struct js_event) + sizeof(int));
+}
+
 void playback_joystick_inputs (void)
 {
 	//Copy the input file into memory
@@ -527,11 +533,9 @@ void playback_joystick_inputs (void)
 	}
 
 	filepos = 0;
-	int drift = 0;
-	// Precalculate end of file position
-	int filepos_end = filesize / (sizeof(struct js_event) + sizeof(int));
-	//printf ("filepos_end %i\n", filepos_end);
 	
+	calc_eof_position ();
+
 	//Start latch interrupt counter
 	setup_interrupts ();
 	while (1)
@@ -545,13 +549,10 @@ void playback_joystick_inputs (void)
 		while ((latch_counter < playback_latch) &&
 				(old_latch != playback_latch))
 				usleep (1);
+		
+		//Store the old playback_latch
 		old_latch = playback_latch;
-		if (verbose)
-		{
-			total_latency += latch_counter - playback_latch;
-			//printf ("Drift %i\n", drift);
-			//printf("axis %d, button %d, value %d, latch %i\n", ev.type, ev.number,ev.value, playback_latch);
-		}
+		
 		//Write the vars to GPIO
 		write_joystick_gpio ();
 		//check to see if we are at the end of the input file
@@ -570,9 +571,11 @@ void debug_playback_input (void)
 		return;
 	}
 	
-	int filepos_end = filesize / (sizeof(struct js_event) + sizeof(int));
-	//printf ("filepos_end %i\n", filepos_end);
+
+	calc_eof_position ();
+	
 	filepos = 0;
+	
 	while (1)
 	{
 		//Copy evdev state and latch into vars
@@ -581,7 +584,7 @@ void debug_playback_input (void)
 		
 		//Print the values
 		print_joystick_input ();
-	//	printf ("filepos %i\n", filepos);
+		
 		//check to see if we are at the end of the input file
 		if (++filepos == filepos_end)	
 			break;
@@ -600,7 +603,6 @@ int open_joystick_dev (void)
 void record_joystick_inputs (void)
 {
 	int i;
-	
 	if (open_joystick_dev () == 1)
 	{
 		printf ("Couldn't open /dev/input/js0\n");
@@ -635,7 +637,6 @@ void record_joystick_inputs (void)
 		
 		//Write the joystick vars to GPIO
 		write_joystick_gpio ();
-
 		filepos++;
 	}
 }
@@ -648,14 +649,15 @@ void live_joystick_input (void)
 		printf ("Couldn't open /dev/input/js0\n");
 		return;
 	}
-	
 	running = 1;	
 	while (running)
 	{
 		// Read joystick inputs into ev struct
 		fread (&ev, 1, sizeof(struct js_event), js_dev);
+		
 		if (verbose)
 			printf("axis %d, button %d, value %d, latch %i\n", ev.type, ev.number,ev.value, playback_latch);
+		
 		//Write the joystick vars to GPIO
 		write_joystick_gpio ();
 	}
