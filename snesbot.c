@@ -137,7 +137,7 @@ void print_joystick_input (void)
 		if (ev.value == 1)
 		{
 			switch (ev.number)
-			{
+				{
 				case 8:
 					printf ("Select");
 					break;
@@ -461,7 +461,6 @@ void playback_interrupt (void)
 
 	if (playback_latch <= latch_counter)
 	{
-		//printf ("Want latch %i, got latch %i\n", playback_latch, latch_counter);
 		write_joystick_gpio ();
 		filepos++;
 	
@@ -471,11 +470,13 @@ void playback_interrupt (void)
 		//Handle more than one event on the same latch
 		while (next_playback_latch == latch_counter)
 		{
+			//Copy the evdev state from mem and write to GPIO
 			memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
 			
 			write_joystick_gpio ();
 			filepos++;
 			
+			//Copy the next playback_latch into var
 			memcpy (&next_playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
 		}
 	}
@@ -521,44 +522,6 @@ void start_playback (void)
 void calc_eof_position (void)
 {
 	filepos_end = filesize / (sizeof(struct js_event) + sizeof(int));
-}
-
-void playback_joystick_inputs (void)
-{
-	//Copy the input file into memory
-	if (read_file_into_mem () == 1)
-	{
-		printf("Problem copying input file to memory\n");
-		return;
-	}
-
-	filepos = 0;
-	
-	calc_eof_position ();
-
-	//Start latch interrupt counter
-	setup_interrupts ();
-	while (1)
-	{
-		//Copy evdev and latch state into vars
-		memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
-		memcpy (&playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
-		
-		//printf ("Waiting for latch %i\n", playback_latch);
-		//Wait for the correct SNES latch
-		while ((latch_counter < playback_latch) &&
-				(old_latch != playback_latch))
-				usleep (1);
-		
-		//Store the old playback_latch
-		old_latch = playback_latch;
-		
-		//Write the vars to GPIO
-		write_joystick_gpio ();
-		//check to see if we are at the end of the input file
-		if (++filepos == filepos_end)	
-			break;
-	}
 }
 
 void debug_playback_input (void)
@@ -818,7 +781,6 @@ void snesbot (void)
 		{
 			printf ("Playing back input from %s\n", filename);
 			start_playback ();
-			//playback_joystick_inputs ();
 		}
 		else
 		{
