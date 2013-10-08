@@ -25,6 +25,7 @@
 
 #define RECBUFSIZE	1024 * 16 //Set record buffer to 16MB
 
+//How many SNES buttons there are
 #define NUMBUTTONS	12
 
 int keyboard_input = 0;
@@ -46,10 +47,8 @@ int running = 0;
 //Latency measurement
 int total_latency = 0;
 
-//Crusty code, used by keyboard only
-int in_file;
-
 FILE *js_dev;
+FILE *kb_dev;
 
 //Pointers to input/output buffers
 void *input_ptr;
@@ -57,6 +56,7 @@ void *output_ptr;
 
 //Joystick evdev structure
 static struct js_event ev;
+static struct input_event kb_ev;
 
 // Current and next playback latch
 static int playback_latch = 0;
@@ -69,12 +69,12 @@ int filepos_end = 0;
 // How big (in bytes) the playback/record file is
 long filesize = 0;
 
+//TODO Make this a bit more generic for other controller types, 
+// At the moment it's heavily based around the PS1 controller
 //SNES Controller layout
 const int buttons[NUMBUTTONS] = { X_Pin, A_Pin, B_Pin, Y_Pin, TLeft_Pin, TRight_Pin, Select_Pin, Start_Pin, Up_Pin, Down_Pin, Left_Pin, Right_Pin };
 
 //Button mapping for USB PS1 controller, X/Y axis is handled differently
-//TODO Make this a bit more generic for other controller types, 
-// At the moment it's heavily based around the PS1 controller
 const int psx_mapping[14] = { X_Pin, A_Pin, B_Pin, Y_Pin, TLeft_Pin, TRight_Pin, TLeft_Pin, TRight_Pin, Select_Pin, Start_Pin };
 
 const char button_names[14][7] = { "X", "A", "B", "Y", "Exit", "TRight", "TLeft", "TRight", "Select", "Start" };
@@ -174,6 +174,101 @@ void print_joystick_input (void)
 	old_latch = playback_latch;
 }
 
+void write_keyboard_gpio (void)
+{
+	if (kb_ev.value == 1)
+	{
+		switch (kb_ev.code)
+		{
+			case KEY_UP:
+				digitalWrite (Up_Pin, LOW);
+				break;
+			case KEY_DOWN:
+				digitalWrite (Down_Pin, LOW);
+				break;
+			case KEY_LEFT:
+				digitalWrite (Left_Pin, LOW);
+				break;
+			case KEY_RIGHT:
+				digitalWrite (Right_Pin, LOW);
+				break;
+			case KEY_ENTER:
+				digitalWrite (Start_Pin, LOW);
+				break;
+			case KEY_A:
+				digitalWrite (B_Pin, LOW);
+				break;
+			case KEY_S:
+				digitalWrite (A_Pin, LOW);
+				break;
+			case KEY_Q:
+				digitalWrite (Y_Pin, LOW);
+				break;
+			case KEY_W:
+				digitalWrite (X_Pin, LOW);
+				break;
+			case KEY_RIGHTSHIFT:
+				digitalWrite (Select_Pin, LOW);
+				break;
+			case KEY_1:
+				digitalWrite (TLeft_Pin, LOW);
+				break;
+			case KEY_2:
+				digitalWrite (TRight_Pin, LOW);
+				break;
+			default:
+				break;
+		}
+	}
+		
+	if (kb_ev.value == 0)
+	{
+		switch (kb_ev.code)
+		{
+			case KEY_UP:
+				digitalWrite (Up_Pin, HIGH);
+				break;
+			case KEY_DOWN:
+				digitalWrite (Down_Pin, HIGH);
+				break;
+			case KEY_LEFT:
+				digitalWrite (Left_Pin, HIGH);
+				break;
+			case KEY_RIGHT:
+				digitalWrite (Right_Pin, HIGH);
+				break;
+			case KEY_ENTER:
+				digitalWrite (Start_Pin, HIGH);
+				break;
+			case KEY_A:
+				digitalWrite (B_Pin, HIGH);
+				break;
+			case KEY_S:
+				digitalWrite (A_Pin, HIGH);
+				break;
+			case KEY_Q:
+				digitalWrite (Y_Pin, HIGH);
+				break;
+			case KEY_W:
+				digitalWrite (X_Pin, HIGH);
+				break;
+			case KEY_RIGHTSHIFT:
+				digitalWrite (Select_Pin, HIGH);
+				break;
+			case KEY_1:
+				digitalWrite (TLeft_Pin, HIGH);
+				break;
+			case KEY_2:
+				digitalWrite (TRight_Pin, HIGH);
+				break;
+			case KEY_ESC:
+				running = 0;
+				break;
+			default:
+				break;
+		}
+	}
+}
 
 void write_joystick_gpio (void)
 {
@@ -359,6 +454,7 @@ void playback_interrupt (void)
 	memcpy (&playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
 
 
+	//Wait until we are on the correct latch
 	if (latch_counter >= playback_latch)
 	{
 		if (verbose)
@@ -394,9 +490,7 @@ void playback_interrupt (void)
 			memcpy (&next_playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
 		}
 	}
-	
 }
-
 
 void latch_interrupt (void)
 {
@@ -478,6 +572,15 @@ int open_joystick_dev (void)
 		return 0;
 }
 
+int open_keyboard_dev (void)
+{
+	kb_dev = fopen ("/dev/input/event0", "r");
+	if (kb_dev == NULL)
+		return 1;
+	else
+		return 0;
+}
+
 void record_joystick_inputs (void)
 {
 	int i;
@@ -545,108 +648,23 @@ void live_joystick_input (void)
 //TODO Crusty code below
 void read_keyboard (void)
 {
-	int in_file;
-	struct input_event ev[2];
-
-	in_file = open("/dev/input/event0", O_RDONLY);
+	if (open_keyboard_dev () == 1)
+	{
+		printf ("Couldn't open /dev/input/event0\n");
+		return;
+	}
+	
+	running = 1;
 	setup_interrupts ();
 
-	for (;;)
+	while (running)
 	{
-		read (in_file, &ev, sizeof(struct input_event) * 2);
+		//Read the events into the event struct
+		fread (&kb_ev, 1, sizeof(struct input_event), kb_dev);
+		
 		if (verbose)
-			printf("type %d, code %d, value %d\n", ev[1].type, ev[1].code,ev[1].value);
-		
-		if (ev[1].value == 1)
-		{
-			switch (ev[1].code)
-			{
-				case KEY_UP:
-					digitalWrite (Up_Pin, LOW);
-					break;
-				case KEY_DOWN:
-					digitalWrite (Down_Pin, LOW);
-					break;
-				case KEY_LEFT:
-					digitalWrite (Left_Pin, LOW);
-					break;
-				case KEY_RIGHT:
-					digitalWrite (Right_Pin, LOW);
-					break;
-				case KEY_ENTER:
-					digitalWrite (Start_Pin, LOW);
-					break;
-				case KEY_A:
-					digitalWrite (B_Pin, LOW);
-					break;
-				case KEY_S:
-					digitalWrite (A_Pin, LOW);
-					break;
-				case KEY_Q:
-					digitalWrite (Y_Pin, LOW);
-					break;
-				case KEY_W:
-					digitalWrite (X_Pin, LOW);
-					break;
-				case KEY_RIGHTSHIFT:
-					digitalWrite (Select_Pin, LOW);
-					break;
-				case KEY_1:
-					digitalWrite (TLeft_Pin, LOW);
-					break;
-				case KEY_2:
-					digitalWrite (TRight_Pin, LOW);
-					break;
-				default:
-					break;
-			}
-		}
-		
-		if (ev[1].value == 0)
-		{
-			switch (ev[1].code)
-			{
-				case KEY_UP:
-					digitalWrite (Up_Pin, HIGH);
-					break;
-				case KEY_DOWN:
-					digitalWrite (Down_Pin, HIGH);
-					break;
-				case KEY_LEFT:
-					digitalWrite (Left_Pin, HIGH);
-					break;
-				case KEY_RIGHT:
-					digitalWrite (Right_Pin, HIGH);
-					break;
-				case KEY_ENTER:
-					digitalWrite (Start_Pin, HIGH);
-					break;
-				case KEY_A:
-					digitalWrite (B_Pin, HIGH);
-					break;
-				case KEY_S:
-					digitalWrite (A_Pin, HIGH);
-					break;
-				case KEY_Q:
-					digitalWrite (Y_Pin, HIGH);
-					break;
-				case KEY_W:
-					digitalWrite (X_Pin, HIGH);
-					break;
-				case KEY_RIGHTSHIFT:
-					digitalWrite (Select_Pin, HIGH);
-					break;
-				case KEY_1:
-					digitalWrite (TLeft_Pin, HIGH);
-					break;
-				case KEY_2:
-					digitalWrite (TRight_Pin, HIGH);
-					break;
-
-				default:
-					break;
-			}
-		}
+			printf("type %d, code %d, value %d\n", kb_ev.type, kb_ev.code, kb_ev.value);
+		write_keyboard_gpio ();
 	}
 }
 
