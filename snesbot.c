@@ -25,6 +25,8 @@
 
 #define RECBUFSIZE	1024 * 16 //Set record buffer to 16MB
 
+#define NUMBUTTONS	12
+
 int keyboard_input = 0;
 int joystick_input = 0;
 int record_input = 0;
@@ -67,12 +69,20 @@ int filepos_end = 0;
 // How big (in bytes) the playback/record file is
 long filesize = 0;
 
-int buttons[12] = { X_Pin, A_Pin, B_Pin, Y_Pin, TLeft_Pin, TRight_Pin, Select_Pin, Start_Pin, Up_Pin, Down_Pin, Left_Pin, Right_Pin };
+//SNES Controller layout
+const int buttons[NUMBUTTONS] = { X_Pin, A_Pin, B_Pin, Y_Pin, TLeft_Pin, TRight_Pin, Select_Pin, Start_Pin, Up_Pin, Down_Pin, Left_Pin, Right_Pin };
+
+//Button mapping for USB PS1 controller, X/Y axis is handled differently
+//TODO Make this a bit more generic for other controller types, 
+// At the moment it's heavily based around the PS1 controller
+const int psx_mapping[14] = { X_Pin, A_Pin, B_Pin, Y_Pin, TLeft_Pin, TRight_Pin, TLeft_Pin, TRight_Pin, Select_Pin, Start_Pin };
+
+const char button_names[14][7] = { "X", "A", "B", "Y", "Exit", "TRight", "TLeft", "TRight", "Select", "Start" };
 
 void clear_buttons (void)
 {
 	int i;
-	for (i = 0; i < 12; i++)
+	for (i = 0; i < NUMBUTTONS; i++)
 	{
 		//Set all buttons to off ie HIGH
 		digitalWrite (buttons[i], HIGH);
@@ -90,7 +100,7 @@ int init_gpio (void)
 	pinMode (Latch_Pin, INPUT);
 	pullUpDnControl (Latch_Pin, PUD_OFF);
 	
-	for (i = 0; i < 12; i++)
+	for (i = 0; i < NUMBUTTONS; i++)
 	{
 		pinMode (buttons[i], OUTPUT);
 		pullUpDnControl (buttons[i], PUD_UP);
@@ -153,77 +163,12 @@ void print_joystick_input (void)
 		// 1 = ON/GPIO LOW
 		if (ev.value == 1)
 		{
-			switch (ev.number)
-				{
-				case 8:
-					printf ("Select");
-					break;
-				case 9:
-					printf ("Start");
-					break;
-				case 2:
-					printf("B");
-					break;
-				case 1:
-					printf ("A");
-					break;
-				case 3:
-					printf ("Y");
-					break;
-				case 0:
-					printf ("X");
-					break;
-				case 6:
-					printf ("TL");
-					break;
-				case 7:
-					printf ("TR");
-					break;
-				case 4: 
-				case 5:
-					printf ("Exit");
-					running = 0;
-					break;
-				default:
-					break;
-			}
-			printf (" pressed ");
+			printf ("%s pressed ", button_names[ev.number]);
 		}
 		// 0 = OFF/GPIO HIGH
-		if (ev.value == 0)
+		else if (ev.value == 0)
 		{
-			switch (ev.number)
-			{
-				case 8:
-					printf ("Select");
-					break;
-				case 9:
-					printf ("Start");
-					break;
-				case 2:
-					printf ("B");
-					break;
-				case 1:
-					printf ("A");
-					break;
-				case 3:
-					printf ("Y");
-					break;
-				case 0:
-					printf ("X");
-					break;
-				case 4:
-				case 6:
-					printf ("TL");
-					break;
-				case 5:
-				case 7:
-					printf ("TR");
-					break;
-				default:
-					break;
-			}
-			printf (" released");
+			printf ("%s released ", button_names[ev.number]);
 		}
 	}
 	old_latch = playback_latch;
@@ -283,74 +228,16 @@ void write_joystick_gpio (void)
 		// 1 = ON/GPIO LOW
 		if (ev.value == 1)
 		{
-			switch (ev.number)
-			{
-				case 8:
-					digitalWrite (Select_Pin, LOW);
-					break;
-				case 9:
-					digitalWrite (Start_Pin, LOW);
-					break;
-				case 2:
-					digitalWrite (B_Pin, LOW);
-					break;
-				case 1:
-					digitalWrite (A_Pin, LOW);
-					break;
-				case 3:
-					digitalWrite (Y_Pin, LOW);
-					break;
-				case 0:
-					digitalWrite (X_Pin, LOW);
-					break;
-				case 6:
-					digitalWrite (TLeft_Pin, LOW);
-					break;
-				case 7:
-					digitalWrite (TRight_Pin, LOW);
-					break;
-				case 4: 
-				case 5:
-					running = 0;
-					break;
-				default:
-					break;
-			}
+			//R1 is quit
+			if (ev.number == 4)
+				running = 0;
+			else
+				digitalWrite (psx_mapping[ev.number], LOW);
 		}
 		// 0 = OFF/GPIO HIGH
-		if (ev.value == 0)
+		else if (ev.value == 0)
 		{
-			switch (ev.number)
-			{
-				case 8:
-					digitalWrite (Select_Pin, HIGH);
-					break;
-				case 9:
-					digitalWrite (Start_Pin, HIGH);
-					break;
-				case 2:
-					digitalWrite (B_Pin, HIGH);
-					break;
-				case 1:
-					digitalWrite (A_Pin, HIGH);
-					break;
-				case 3:
-					digitalWrite (Y_Pin, HIGH);
-					break;
-				case 0:
-					digitalWrite (X_Pin, HIGH);
-					break;
-				case 4:
-				case 6:
-					digitalWrite (TLeft_Pin, HIGH);
-					break;
-				case 5:
-				case 7:
-					digitalWrite (TRight_Pin, HIGH);
-					break;
-				default:
-					break;
-			}
+			digitalWrite (psx_mapping[ev.number], HIGH);
 		}
 	}
 }
