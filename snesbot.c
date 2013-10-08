@@ -67,22 +67,39 @@ int filepos_end = 0;
 // How big (in bytes) the playback/record file is
 long filesize = 0;
 
+int buttons[12] = { X_Pin, A_Pin, B_Pin, Y_Pin, TLeft_Pin, TRight_Pin, Select_Pin, Start_Pin, Up_Pin, Down_Pin, Left_Pin, Right_Pin };
+
 void clear_buttons (void)
 {
-	//Set all buttons to off ie HIGH
-	digitalWrite (B_Pin, HIGH);
-	digitalWrite (Y_Pin, HIGH);
-	digitalWrite (Select_Pin, HIGH);
-	digitalWrite (Start_Pin, HIGH);
-	digitalWrite (Up_Pin, HIGH);
-	digitalWrite (Down_Pin, HIGH);
-	digitalWrite (Left_Pin, HIGH);
-	digitalWrite (Right_Pin, HIGH);
-	digitalWrite (A_Pin, HIGH);
-	digitalWrite (X_Pin, HIGH);
-	digitalWrite (TLeft_Pin, HIGH);
-	digitalWrite (TRight_Pin, HIGH);
+	int i;
+	for (i = 0; i < 12; i++)
+	{
+		//Set all buttons to off ie HIGH
+		digitalWrite (buttons[i], HIGH);
+	}
 }
+
+int init_gpio (void)
+{
+	int i;
+
+	if (wiringPiSetup () == -1)
+		return 1;
+	
+	//Set up pins
+	pinMode (Latch_Pin, INPUT);
+	pullUpDnControl (Latch_Pin, PUD_OFF);
+	
+	for (i = 0; i < 12; i++)
+	{
+		pinMode (buttons[i], OUTPUT);
+		pullUpDnControl (buttons[i], PUD_UP);
+	}
+
+	clear_buttons ();
+	return 0;
+}
+
 
 void print_joystick_input (void)
 {
@@ -405,6 +422,7 @@ int read_file_into_mem (void)
 	
 	//Read the input file into allocated memory
 	fread (input_ptr, 1, filesize, input_file);
+	
 	//Close the input file, no longer needed
 	fclose (input_file);
 	return 0;
@@ -431,8 +449,6 @@ void handle_exit (void)
 	else if (playback_input)
 	{
 		printf ("Finished playback\n");
-		if (verbose)
-			printf("Total latency %i\n", total_latency);
 		//Free memory used by input file
 		free (input_ptr);
 	}
@@ -451,35 +467,47 @@ void playback_interrupt (void)
 		
 	latch_counter++;
 
-	if (filepos == filepos_end)
-		running = 0;
-
 	//Copy evdev and latch state into vars
 	memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
 	memcpy (&playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
 
 
-	if (playback_latch <= latch_counter)
+	if (latch_counter >= playback_latch)
 	{
+		if (verbose)
+			print_joystick_input ();
 		write_joystick_gpio ();
-		filepos++;
+		
+		if (++filepos == filepos_end)
+		{
+			return;
+			running = 0;
+		}
 	
 		//Copy the next playback_latch into var
 		memcpy (&next_playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
 	
 		//Handle more than one event on the same latch
-		while (next_playback_latch == latch_counter)
+		while (latch_counter >= next_playback_latch)
 		{
 			//Copy the evdev state from mem and write to GPIO
 			memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
 			
+			if (verbose)
+				print_joystick_input ();
 			write_joystick_gpio ();
-			filepos++;
+			
+			if (++filepos == filepos_end)
+			{
+				return;
+				running = 0;
+			}
 			
 			//Copy the next playback_latch into var
 			memcpy (&next_playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
 		}
 	}
+	
 }
 
 
@@ -496,6 +524,12 @@ void setup_interrupts (void)
 		wiringPiISR (Latch_Pin, INT_EDGE_RISING, &latch_interrupt);
 }
 
+// Precalculate end of file position
+void calc_eof_position (void)
+{
+	filepos_end = filesize / (sizeof(struct js_event) + sizeof(int));
+}
+
 void start_playback (void)
 {	
 	//Copy the input file into memory
@@ -507,7 +541,7 @@ void start_playback (void)
 	else
 	{
 		// Precalculate end of file position
-		filepos_end = filesize / (sizeof(struct js_event) + sizeof(int));
+		calc_eof_position ();
 		filepos = 0;
 		running = 1;
 		setup_interrupts ();
@@ -516,12 +550,6 @@ void start_playback (void)
 		while (running)
 			sleep (1);
 	}
-}
-
-// Precalculate end of file position
-void calc_eof_position (void)
-{
-	filepos_end = filesize / (sizeof(struct js_event) + sizeof(int));
 }
 
 void debug_playback_input (void)
@@ -737,31 +765,6 @@ void read_keyboard (void)
 
 
 
-int init_gpio (void)
-{
-	if (wiringPiSetup () == -1)
-		return 1;
-	
-	//Set up pins
-	pinMode (Latch_Pin, INPUT);
-	
-	pinMode (B_Pin, OUTPUT);
-	pinMode (Y_Pin, OUTPUT);
-	pinMode (Select_Pin, OUTPUT);
-	pinMode (Start_Pin, OUTPUT);
-	pinMode (Up_Pin, OUTPUT);
-	pinMode (Down_Pin, OUTPUT);
-	pinMode (Left_Pin, OUTPUT);
-	pinMode (Right_Pin, OUTPUT);
-	pinMode (A_Pin, OUTPUT);
-	pinMode (X_Pin, OUTPUT);
-	pinMode (TLeft_Pin, OUTPUT);
-	pinMode (TRight_Pin, OUTPUT);
-	
-	clear_buttons ();
-	return 0;
-}
-
 void snesbot (void)
 {
 	printf("Go go SNESBot\n");
@@ -881,7 +884,7 @@ int main (int argc, char *argv[])
 	if (high_priority)
 	{	// Set priority
 		printf("Setting high priority\n");
-		piHiPri (40); sleep (1);
+		piHiPri (90); sleep (1);
 	}
 	
 	if (joystick_input && keyboard_input)
