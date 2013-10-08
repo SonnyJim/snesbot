@@ -33,4 +33,6 @@ Netplay (depending on the RNG method used by each game)
 
 TAS video playback (again, depending on the RNG method used)
 
+Right now the code is heavily based around using a USB PS1 controller, would be nice to support other controllers
+
 Some circuit diagrams and information about the controller protocol would be nice
