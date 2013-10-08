@@ -32,6 +32,8 @@ CFLAGS	= $(DEBUG) -Wall $(INCLUDE) -Winline -pipe
 LDFLAGS	= -L/usr/local/lib
 LDLIBS    = -lwiringPi -lwiringPiDev
 
+all: snesbot snestest
+
 snesbot: snesbot.o
 	@echo [link]
 	@$(CC) -o $@ snesbot.o $(LDFLAGS) $(LDLIBS)
