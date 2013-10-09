@@ -14,7 +14,7 @@
 
 #define Latch_Pin	 13 		// 21
 
-#define RECBUFSIZE	1024 * 16 //Set record buffer to 16MB
+#define RECBUFSIZE	1024 * 1024 * 16 //Set record buffer to 16MB
 
 //How many SNES buttons there are
 #define NUMBUTTONS	12
