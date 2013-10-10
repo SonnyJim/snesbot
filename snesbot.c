@@ -1,6 +1,11 @@
 
-//TODO Recorded filesize is smaller than memory contents?
+//TODO 
+//Recorded filesize is smaller than memory contents?
 //Losing sync after a couple of minutes?
+// Fix argv/argc, use getopt.h?
+//And for that matter, use errno.h
+//Improve general program flow
+//*** glibc detected *** ./snesbot: double free or corruption (!prev): 0x01907178 ***
 #include <wiringPi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,6 +66,15 @@ const int buttons[NUMBUTTONS] = { X_Pin, A_Pin, B_Pin, Y_Pin, TLeft_Pin, TRight_
 const int psx_mapping[14] = { X_Pin, A_Pin, B_Pin, Y_Pin, TLeft_Pin, TRight_Pin, TLeft_Pin, TRight_Pin, Select_Pin, Start_Pin };
 
 const char button_names[14][7] = { "X", "A", "B", "Y", "Exit", "TRight", "TLeft", "TRight", "Select", "Start" };
+
+void wait_for_first_latch (void)
+{
+	if (wait_for_latch && !debug_playback)
+	{
+		printf("Waiting for first latch\n");
+		while (digitalRead (Latch_Pin) == 0);
+	}
+}
 
 void clear_buttons (void)
 {
@@ -506,6 +520,10 @@ void start_playback (void)
 		calc_eof_position ();
 		filepos = 0;
 		running = 1;
+		
+		wait_for_first_latch ();
+		
+		//Start playback
 		setup_interrupts ();
 		
 		//Wait for file to finish playback
@@ -585,9 +603,11 @@ void record_joystick_inputs (void)
 
 	running = 1;
 	filepos = 0;
-	
+
+	wait_for_first_latch ();
 	//Start latch interrupt counter
 	setup_interrupts ();
+
 	while (running)
 	{
 		// Read joystick inputs into ev struct
@@ -824,11 +844,6 @@ int main (int argc, char *argv[])
 		}
 	}
 
-	if (wait_for_latch && !debug_playback)
-	{
-		printf("Waiting for first latch\n");
-		while (digitalRead (Latch_Pin) == 0);
-	}
 	//Main loop
 	snesbot ();
 	return 0;
