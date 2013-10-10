@@ -15,13 +15,19 @@
 #include <fcntl.h>
 #include <string.h>
 #include "snesbot.h"
+#include <sys/time.h>
 
+//Command line variables
 int keyboard_input = 0;
 int joystick_input = 0;
 int record_input = 0;
 int playback_input = 0;
 int verbose = 0;
 int debug_playback = 0;
+int wait_for_latch = 0;
+
+struct timeval start_time, end_time;
+
 char *filename = "snesbot.rec";
 
 //Number of SNES latches read by GPIO latch pin
@@ -407,9 +413,16 @@ int read_file_into_mem (void)
 	return 0;
 }
 
+void print_time_elapsed (void)
+{
+	gettimeofday (&end_time, NULL);
+	int time_elapsed = (end_time.tv_sec - start_time.tv_sec);
+	printf ("Elapsed time = %i seconds\n", time_elapsed);
+}
 
 void handle_exit (void)
 {
+	
 	if (!debug_playback)
 	{
 		printf ("Clearing buttons\n");
@@ -418,7 +431,7 @@ void handle_exit (void)
 
 	if (record_input)
 	{
-		printf ("Finished recording\n");
+		print_time_elapsed ();
 		printf ("Writing memory contents to file %s\n", filename);
 		if (write_mem_into_file () == 1)
 			printf("Problem writing memory contents to file\n");
@@ -427,6 +440,7 @@ void handle_exit (void)
 	}
 	else if (playback_input)
 	{
+		print_time_elapsed ();
 		printf ("Finished playback\n");
 		//Free memory used by input file
 		free (input_ptr);
@@ -494,6 +508,10 @@ void latch_interrupt (void)
 
 void setup_interrupts (void)
 {
+	//Time how long playback/record takes
+	gettimeofday (&start_time, NULL);
+	wait_for_first_latch ();
+	
 	if (playback_input)
 		wiringPiISR (Latch_Pin, INT_EDGE_RISING, &playback_interrupt);
 	else if (record_input)
@@ -520,8 +538,6 @@ void start_playback (void)
 		calc_eof_position ();
 		filepos = 0;
 		running = 1;
-		
-		wait_for_first_latch ();
 		
 		//Start playback
 		setup_interrupts ();
@@ -604,8 +620,7 @@ void record_joystick_inputs (void)
 	running = 1;
 	filepos = 0;
 
-	wait_for_first_latch ();
-	//Start latch interrupt counter
+	//Start recording latch counter
 	setup_interrupts ();
 
 	while (running)
@@ -726,7 +741,6 @@ int main (int argc, char *argv[])
 {
 	int show_usage = 0;
 	int high_priority = 0;
-	int wait_for_latch = 0;
 
 	printf("SNESBot v3\n");
 	while ((argc > 1) && (argv[1][0] == '-' ))
