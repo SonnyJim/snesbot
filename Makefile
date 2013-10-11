@@ -27,7 +27,7 @@
 DEBUG	= -O3
 CC	= gcc
 INCLUDE	= -I/usr/local/include
-CFLAGS	= $(DEBUG) -Wall $(INCLUDE) -Winline -pipe
+CFLAGS	= $(DEBUG) -Wall $(INCLUDE) -Winline -pipe -std=c99
 
 LDFLAGS	= -L/usr/local/lib
 LDLIBS    = -lwiringPi -lwiringPiDev
@@ -41,6 +41,9 @@ snesbot: snesbot.o
 snestest: snestest.o
 	@echo [link]
 	@$(CC) -o $@ snestest.o $(LDFLAGS) $(LDLIBS)
+movieconv: movieconv.o
+	@echo [link]
+	@$(CC) -o $@ movieconv.o $(LDFLAGS) $(LDLIBS)
 
 clean:
 	rm snesbot.o snesbot snestest.o snestest

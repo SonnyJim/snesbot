@@ -26,6 +26,7 @@ int playback_input = 0;
 int verbose = 0;
 int debug_playback = 0;
 int wait_for_latch = 0;
+int lsnes_input_file = 0;
 
 struct timeval start_time, end_time;
 
@@ -53,6 +54,10 @@ void *output_ptr;
 static struct js_event ev;
 static struct input_event kb_ev;
 
+//lsnes polldump.lua input format is 
+// 0000 RLXA rldu SsYB
+unsigned short int lsnes_buttons = 0;
+
 // Current and next playback latch
 static unsigned long int playback_latch = 0;
 static unsigned long int next_playback_latch = 0;
@@ -68,6 +73,10 @@ unsigned long int filesize = 0;
 // At the moment it's heavily based around the PS1 controller
 //SNES Controller layout
 const int buttons[NUMBUTTONS] = { X_Pin, A_Pin, B_Pin, Y_Pin, TLeft_Pin, TRight_Pin, Select_Pin, Start_Pin, Up_Pin, Down_Pin, Left_Pin, Right_Pin };
+
+const int lsnes_input_map[NUMBUTTONS] = { TRight_Pin, TLeft_Pin, X_Pin, A_Pin, Right_Pin, Left_Pin, Down_Pin, Up_Pin, Start_Pin, Select_Pin, Y_Pin, B_Pin};
+
+const char lsnes_button_names[14][7] = {"TRight", "TLeft", "X", "A", "Right", "Left", "Down", "Up", "Start", "Select", "Y", "B"};
 
 //Button mapping for USB PS1 controller, X/Y axis is handled differently
 const int psx_mapping[14] = { X_Pin, A_Pin, B_Pin, Y_Pin, TLeft_Pin, TRight_Pin, TLeft_Pin, TRight_Pin, Select_Pin, Start_Pin };
@@ -102,7 +111,7 @@ int init_gpio (void)
 	
 	//Set up pins
 	pinMode (Latch_Pin, INPUT);
-	pullUpDnControl (Latch_Pin, PUD_OFF);
+	pullUpDnControl (Latch_Pin, PUD_DOWN);
 	
 	for (i = 0; i < NUMBUTTONS; i++)
 	{
@@ -465,6 +474,87 @@ void handle_exit (void)
 
 }
 
+void lsnes_print_gpio (void)
+{
+	for (int i = 4; i < 16; i++)
+	{
+		printf("%i %s %i\n", i, lsnes_button_names[i - 4], lsnes_buttons & (1 << (i - 1)));
+	}
+
+}
+
+void lsnes_write_gpio (void)
+{
+	for (int i = 4; i < 16; i++)
+	{
+		if ((lsnes_buttons & (1 << (i - 1))) > 0)
+			digitalWrite(lsnes_input_map[i - 4], LOW);
+		else
+			digitalWrite(lsnes_input_map[i - 4], HIGH);
+	}
+
+}
+
+void lsnes_playback_interrupt (void)
+{
+	if (!running)
+		return;
+
+	latch_counter++;
+	
+	// Copy button state into lsnes_buttons
+	memcpy (&lsnes_buttons, input_ptr + (filepos * (sizeof(lsnes_buttons))), sizeof(lsnes_buttons));
+	
+	lsnes_write_gpio ();
+
+	if (++filepos == filepos_end)
+		running = 0;
+}
+
+// Precalculate end of file position
+void calc_eof_position (void)
+{
+	if (!lsnes_input_file)
+		filepos_end = filesize / (sizeof(struct js_event) + sizeof(latch_counter));
+	else
+		filepos_end = filesize / sizeof(lsnes_buttons);
+}
+
+
+void debug_lsnes_playback (void)
+{
+	//Copy the input file into memory
+	if (read_file_into_mem () == 1)
+	{
+		printf("Problem copying input file to memory\n");
+		return;
+	}
+	
+
+	calc_eof_position ();
+	
+	filepos = 0;
+	
+	while (1)
+	{
+		latch_counter++;
+		//Copy evdev state and latch into vars
+		memcpy (&lsnes_buttons, input_ptr + (filepos * (sizeof(lsnes_buttons))), sizeof(lsnes_buttons));
+		
+		//Print the values
+		if (lsnes_buttons != 0)
+		{
+			printf ("lsnes_buttons = %i filepos = %lu\n", lsnes_buttons, filepos);
+			lsnes_write_gpio ();
+		}
+		//check to see if we are at the end of the input file
+		if (++filepos == filepos_end)	
+			break;
+	}
+
+}
+
+
 void playback_interrupt (void)
 {
 	if (!running)
@@ -484,8 +574,8 @@ void playback_interrupt (void)
 		
 		if (++filepos == filepos_end)
 		{
-			return;
 			running = 0;
+			return;
 		}
 	
 		//Copy the next playback_latch into var
@@ -524,8 +614,13 @@ void setup_interrupts (void)
 {
 	//Time how long playback/record takes
 	gettimeofday (&start_time, NULL);
-	
-	if (playback_input)
+
+	if (lsnes_input_file)
+	{
+		wait_for_first_latch ();
+		wiringPiISR (Latch_Pin, INT_EDGE_RISING, &lsnes_playback_interrupt);
+	}
+	else if (playback_input)
 	{
 		wait_for_first_latch ();
 		wiringPiISR (Latch_Pin, INT_EDGE_RISING, &playback_interrupt);
@@ -535,12 +630,6 @@ void setup_interrupts (void)
 		wait_for_first_latch ();
 		wiringPiISR (Latch_Pin, INT_EDGE_RISING, &latch_interrupt);
 	}
-}
-
-// Precalculate end of file position
-void calc_eof_position (void)
-{
-	filepos_end = filesize / (sizeof(struct js_event) + sizeof(latch_counter));
 }
 
 void start_playback (void)
@@ -718,11 +807,16 @@ void snesbot (void)
 	}
 	else if (debug_playback)
 	{
-		debug_playback_input ();
+		if (lsnes_input_file)
+			debug_lsnes_playback ();
+		else
+			debug_playback_input ();
 	}
 	else if (playback_input)
 	{
 		printf ("Playing back input from %s\n", filename);
+		if (lsnes_input_file)
+			printf ("lsnes polldump input file selected\n");
 		start_playback ();
 	}
 	else
@@ -759,7 +853,7 @@ int main (int argc, char **argv)
 	printf("SNESBot v3\n");
 	
 	int c;
-	while ((c = getopt (argc, argv, "df:jklvhpPr")) != -1)
+	while ((c = getopt (argc, argv, "df:jklLvhpPr")) != -1)
 	{
 		switch (c)
 		{
@@ -783,6 +877,10 @@ int main (int argc, char **argv)
 
 			case 'l':
 				wait_for_latch = 1;
+				break;
+			case 'L':
+				lsnes_input_file = 1;
+				playback_input = 1;
 				break;
 
 			case 'p':
