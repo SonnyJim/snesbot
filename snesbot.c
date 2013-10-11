@@ -31,10 +31,10 @@ struct timeval start_time, end_time;
 char *filename = "snesbot.rec";
 
 //Number of SNES latches read by GPIO latch pin
-int latch_counter = 0;
+unsigned long int latch_counter = 0;
 
 //Handle when we get more than one event on the same latch
-int old_latch = 0;
+unsigned long int old_latch = 0;
 
 int running = 0;
 
@@ -53,15 +53,15 @@ static struct js_event ev;
 static struct input_event kb_ev;
 
 // Current and next playback latch
-static int playback_latch = 0;
-static int next_playback_latch = 0;
+static unsigned long int playback_latch = 0;
+static unsigned long int next_playback_latch = 0;
 
 //Whereabouts in the playback/record file we are
-int filepos = 0;
+unsigned long int filepos = 0;
 // Where the end of the playback file is
-int filepos_end = 0;
+unsigned long int filepos_end = 0;
 // How big (in bytes) the playback/record file is
-long filesize = 0;
+unsigned long int filesize = 0;
 
 //TODO Make this a bit more generic for other controller types, 
 // At the moment it's heavily based around the PS1 controller
@@ -117,7 +117,7 @@ int init_gpio (void)
 void print_joystick_input (void)
 {
 	if (old_latch != playback_latch)
-		printf ("\n%i ", playback_latch);
+		printf ("\n%lu ", playback_latch);
 	else
 		printf (" + ");
 	
@@ -367,7 +367,7 @@ int write_mem_into_file (void)
 	}
 	
 	//Calculate filesize
-	filesize = (sizeof(struct js_event) + sizeof(int)) * filepos;
+	filesize = (sizeof(struct js_event) + sizeof(latch_counter)) * filepos;
 	printf ("Recorded %lu bytes\n", filesize);
 	
 	//Store to output file
@@ -432,7 +432,7 @@ void handle_exit (void)
 	if (record_input)
 	{
 		print_time_elapsed ();
-		printf("Total latches %i \n", latch_counter);
+		printf("Total latches %lu \n", latch_counter);
 
 		printf ("Writing memory contents to file %s\n", filename);
 		if (write_mem_into_file () == 1)
@@ -452,9 +452,9 @@ void handle_exit (void)
 		//Free memory used by input file
 		
 		if (playback_latch > next_playback_latch)
-			printf ("Total latches: %i\n", playback_latch);
+			printf ("Total latches: %lu\n", playback_latch);
 		else
-			printf ("Total latches: %i\n", next_playback_latch);
+			printf ("Total latches: %lu\n", next_playback_latch);
 	}
 
 	if (joystick_input)
@@ -472,8 +472,8 @@ void playback_interrupt (void)
 	latch_counter++;
 
 	//Copy evdev and latch state into vars
-	memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
-	memcpy (&playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
+	memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(latch_counter))), sizeof(struct js_event));
+	memcpy (&playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(latch_counter)))), sizeof(latch_counter));
 
 
 	//Wait until we are on the correct latch
@@ -488,15 +488,15 @@ void playback_interrupt (void)
 		}
 	
 		//Copy the next playback_latch into var
-		memcpy (&next_playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
+		memcpy (&next_playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(latch_counter)))), sizeof(latch_counter));
 		if (latch_counter != playback_latch)
-			printf("Lost sync!! expected: %i got: %i\n", playback_latch, latch_counter);
+			printf("Lost sync!! expected: %lu got: %lu\n", playback_latch, latch_counter);
 		//Wait for the correct latch
 		//Make sure all events on that latch are done
 		while (latch_counter >= next_playback_latch)
 		{
 			//Copy the evdev state from mem and write to GPIO
-			memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
+			memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(latch_counter))), sizeof(struct js_event));
 			
 
 			write_joystick_gpio ();
@@ -508,7 +508,7 @@ void playback_interrupt (void)
 			}
 			
 			//Copy the next playback_latch into var
-			memcpy (&next_playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
+			memcpy (&next_playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(latch_counter)))), sizeof(latch_counter));
 		}
 	}
 }
@@ -523,18 +523,23 @@ void setup_interrupts (void)
 {
 	//Time how long playback/record takes
 	gettimeofday (&start_time, NULL);
-	wait_for_first_latch ();
 	
 	if (playback_input)
+	{
+		wait_for_first_latch ();
 		wiringPiISR (Latch_Pin, INT_EDGE_RISING, &playback_interrupt);
+	}
 	else if (record_input)
+	{
+		wait_for_first_latch ();
 		wiringPiISR (Latch_Pin, INT_EDGE_RISING, &latch_interrupt);
+	}
 }
 
 // Precalculate end of file position
 void calc_eof_position (void)
 {
-	filepos_end = filesize / (sizeof(struct js_event) + sizeof(int));
+	filepos_end = filesize / (sizeof(struct js_event) + sizeof(latch_counter));
 }
 
 void start_playback (void)
@@ -579,8 +584,8 @@ void debug_playback_input (void)
 	while (1)
 	{
 		//Copy evdev state and latch into vars
-		memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
-		memcpy (&playback_latch, input_ptr + sizeof(struct js_event) +(filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(int));
+		memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(latch_counter))), sizeof(struct js_event));
+		memcpy (&playback_latch, input_ptr + sizeof(struct js_event) +(filepos * (sizeof(struct js_event) + sizeof(latch_counter))), sizeof(latch_counter));
 		
 		//Print the values
 		print_joystick_input ();
@@ -642,8 +647,8 @@ void record_joystick_inputs (void)
 		fread (&ev, 1, sizeof(struct js_event), js_dev);
 		
 		//Copy ev struct and playback latch into record buffer
-		memcpy (output_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), &ev, sizeof(struct js_event));
-		memcpy (output_ptr + sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int))), &latch_counter, sizeof(int));
+		memcpy (output_ptr + (filepos * (sizeof(struct js_event) + sizeof(latch_counter))), &ev, sizeof(struct js_event));
+		memcpy (output_ptr + sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(latch_counter))), &latch_counter, sizeof(latch_counter));
 		
 		//Write the joystick vars to GPIO
 		write_joystick_gpio ();
@@ -666,7 +671,7 @@ void live_joystick_input (void)
 		fread (&ev, 1, sizeof(struct js_event), js_dev);
 		
 		if (verbose)
-			printf("axis %d, button %d, value %d, latch %i\n", ev.type, ev.number,ev.value, playback_latch);
+			printf("axis %d, button %d, value %d, latch %lu\n", ev.type, ev.number,ev.value, playback_latch);
 		
 		//Write the joystick vars to GPIO
 		write_joystick_gpio ();
@@ -697,16 +702,14 @@ void read_keyboard (void)
 	}
 }
 
-
-
 void snesbot (void)
 {
-	printf("Go go SNESBot\n");
 	if (keyboard_input)
 	{
 		printf("Reading input from keyboard\n");
 		read_keyboard ();
 	}
+	
 	if (record_input)
 	{
 		printf ("Recording input to %s\n", filename);
