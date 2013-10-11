@@ -16,6 +16,7 @@
 #include <string.h>
 #include "snesbot.h"
 #include <sys/time.h>
+#include <getopt.h>
 
 //Command line variables
 int keyboard_input = 0;
@@ -750,64 +751,68 @@ void print_usage (void)
 	printf(" -h	show this help\n\n");
 }
 
-int main (int argc, char *argv[])
+int main (int argc, char **argv)
 {
 	int show_usage = 0;
 	int high_priority = 0;
 
 	printf("SNESBot v3\n");
-	while ((argc > 1) && (argv[1][0] == '-' ))
-	{
-		switch (argv[1][1])
-			{
-
-				case 'd':
-					debug_playback = 1;
-					playback_input = 1;
-					verbose = 1;
-					break;
-
-				case 'f':
-					filename = &argv[1][2];
-					break;
-				
-				case 'j':
-					joystick_input = 1;
-					break;
-
-				case 'k':
-					keyboard_input = 1;
-					break;
-
-				case 'l':
-					wait_for_latch = 1;
-					break;
-
-				case 'p':
-					playback_input = 1;
-					break;
-
-				case 'P':
-					high_priority = 1;
-					break;
-
-				case 'r':
-					record_input = 1;
-					break;
-
-				case 'v':
-					verbose = 1;
-					break;
-
-				default:
-				case 'h':
-					show_usage = 1;
-					break;
-			}
-		++argv;
-		--argc;
-	}
 	
+	int c;
+	while ((c = getopt (argc, argv, "df:jklvhpPr")) != -1)
+	{
+		switch (c)
+		{
+			case 'd':
+				debug_playback = 1;
+				playback_input = 1;
+				verbose = 1;
+				break;
+
+			case 'f':
+				filename = optarg;
+				break;
+				
+			case 'j':
+				joystick_input = 1;
+				break;
+
+			case 'k':
+				keyboard_input = 1;
+				break;
+
+			case 'l':
+				wait_for_latch = 1;
+				break;
+
+			case 'p':
+				playback_input = 1;
+				break;
+
+			case 'P':
+				high_priority = 1;
+				break;
+
+			case 'r':
+				record_input = 1;
+				break;
+
+			case 'v':
+				verbose = 1;
+				break;
+
+			default:
+			case 'h':
+				show_usage = 1;
+				break;
+			
+			case '?':
+				if (optopt == 'c')
+					printf("Option %c requires an argument\n", optopt);
+				break;
+			}
+	}
+		
 	if (show_usage)
 	{
 		print_usage ();
@@ -845,7 +850,7 @@ int main (int argc, char *argv[])
 		printf("Record/Playback from keyboard currently unsupported\n");
 		return 1;
 	}
-
+	
 	if (record_input)
 		printf("Record mode\n");
 	else if (playback_input)
