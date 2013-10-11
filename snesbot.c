@@ -432,6 +432,8 @@ void handle_exit (void)
 	if (record_input)
 	{
 		print_time_elapsed ();
+		printf("Total latches %i \n", latch_counter);
+
 		printf ("Writing memory contents to file %s\n", filename);
 		if (write_mem_into_file () == 1)
 			printf("Problem writing memory contents to file\n");
@@ -440,10 +442,19 @@ void handle_exit (void)
 	}
 	else if (playback_input)
 	{
-		print_time_elapsed ();
-		printf ("Finished playback\n");
+		if (!debug_playback)
+		{
+			print_time_elapsed ();
+			free (input_ptr);
+		}
+		
+		printf ("\nFinished playback\n");
 		//Free memory used by input file
-		free (input_ptr);
+		
+		if (playback_latch > next_playback_latch)
+			printf ("Total latches: %i\n", playback_latch);
+		else
+			printf ("Total latches: %i\n", next_playback_latch);
 	}
 
 	if (joystick_input)
@@ -478,15 +489,16 @@ void playback_interrupt (void)
 	
 		//Copy the next playback_latch into var
 		memcpy (&next_playback_latch, input_ptr + (sizeof(struct js_event) + (filepos * (sizeof(struct js_event) + sizeof(int)))), sizeof(int));
-	
-		//Handle more than one event on the same latch
+		if (latch_counter != playback_latch)
+			printf("Lost sync!! expected: %i got: %i\n", playback_latch, latch_counter);
+		//Wait for the correct latch
+		//Make sure all events on that latch are done
 		while (latch_counter >= next_playback_latch)
 		{
 			//Copy the evdev state from mem and write to GPIO
 			memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(int))), sizeof(struct js_event));
 			
-			if (verbose)
-				print_joystick_input ();
+
 			write_joystick_gpio ();
 			
 			if (++filepos == filepos_end)
@@ -503,7 +515,8 @@ void playback_interrupt (void)
 
 void latch_interrupt (void)
 {
-	latch_counter++;
+	if (running)
+		latch_counter++;
 }
 
 void setup_interrupts (void)
@@ -694,27 +707,24 @@ void snesbot (void)
 		printf("Reading input from keyboard\n");
 		read_keyboard ();
 	}
-	else if (joystick_input)
+	if (record_input)
 	{
-		if (record_input)
-		{
-			printf ("Recording input to %s\n", filename);
-			record_joystick_inputs ();
-		}
-		else if (playback_input)
-		{
-			printf ("Playing back input from %s\n", filename);
-			start_playback ();
-		}
-		else
-		{
-			printf("Reading input from joystick\n");
-			live_joystick_input ();
-		}
+		printf ("Recording input to %s\n", filename);
+		record_joystick_inputs ();
 	}
 	else if (debug_playback)
 	{
 		debug_playback_input ();
+	}
+	else if (playback_input)
+	{
+		printf ("Playing back input from %s\n", filename);
+		start_playback ();
+	}
+	else
+	{
+		printf("Reading input from joystick\n");
+		live_joystick_input ();
 	}
 	handle_exit ();
 	printf("Exiting\n");
@@ -833,14 +843,6 @@ int main (int argc, char *argv[])
 		return 1;
 	}
 
-	if (debug_playback)
-	{
-		record_input = 0;
-		playback_input = 0;
-		joystick_input = 0;
-		keyboard_input = 0;
-	}
-
 	if (record_input)
 		printf("Record mode\n");
 	else if (playback_input)
@@ -857,7 +859,13 @@ int main (int argc, char *argv[])
 			return 1;
 		}
 	}
-
+	else
+	{
+		//User might set options that don't mean 
+		//anything during debug playback
+		joystick_input = 0;
+		keyboard_input = 0;
+	}
 	//Main loop
 	snesbot ();
 	return 0;
