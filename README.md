@@ -2,7 +2,7 @@ snesbot
 =======
 
 Controlling a SNES with a Pi.
-
+-----------------------------
 
 The main aim of the project is to:
 
@@ -11,7 +11,7 @@ A.  Use USB devices connected to the Pi (joysticks etc) to control a real SNES
 B.  Record and playback inputs into a real SNES
 
 How it works:
-
+-------------
 The SNES controller protocol is fairly simple, every 16.67ms (or 60Hz for NTSC, 50Hz for PAL consoles) it sends out a latch pulse to each controller, which contain 2 x 4021 shift registers.  These shift registers then clock out the 16 bits of data to the console.  Although the latch pulse is fairly slow, the clock is fairly quick, with 16us between clock pulses.
 
 So far so good, but what about randomness in games?  Well, the good thing is that the SNES lacks a source of entropy (hardware random number generator or even a realtime clock), so most games use an absurdly simple principle.  Count the number of latches before a controller input is pressed and use that to see a RNG.  Also bear in mind that the SNES doesn't start sending out the latch pulses until the CPU is working correctly, this means that as long as we hit exactly the same latch on each poweron, then our RNG will act *exactly* the same, with the same enemy patterns, powerups, items etc.
@@ -37,54 +37,85 @@ After a bit more playing around I had a bit of a eureka moment, where I found ou
 Current status of record/playback is that it works, although it loses sync after a couple of minutes.  I've tested it with:
 
 Hardware required:
-
+-----------------
 A Raspberry Pi + SD card + keyboard / joystick
+
 2 x CD4021B CMOS shift registers
+
 1 x buffer / level convertor for the latch pulse
+
 Some perf/vero board to mount it all on
+
 An old floppy cable or something to break out the GPIO pins
+
 A knockoff/broken controller for the SNES connector
 
 
 Games confirmed to be working:
-
+------------------------------
 USA UN Squadron
+
 Super Mario Kart
+
 Wagyan Paradise
+
 Killer Instinct PAL
+
 Super Mario All-Stars JPN
+
 SuperGB JPN + Tetris DX
+
 SuperGB JPN + Tetris
+
 Super R-Type
 
 Features:
+---------
 Live input via USB joystick or keyboard attached to the Pi
+
 Record joystick inputs and playback
+
 Tool Assisted Video playback via lsnes and Ilari's polldump.lua script
 
 
 To Playback a lsnes TAS video:
-
+------------------------------
 Download lsnes video from TASVideos.org (lsmv)
+
 Download lsnes emulator and install
+
 Download polldump.lua script
+
 Start lsnes emulator, load ROM, pause and reset console
+
 Load lua script
+
 Type in the messages window:
+
 L start_dump ("filename.dump")
+
 and press 'Execute'
+
 Start playback
+
 At the end of playback, type:
+
 L end_dump ()
+
 and press 'Execute'
+
 Copy the dump file to the Pi
+
 Load with:
+
 sudo ./snesbot -l -L -p -j -f filename.dump
+
 Turn on SNES and hopefully watch it do incredible things
 
 TODO:
-
+----
 Netplay (depending on the RNG method used by each game)
+
 Support other TAS video files other than lsnes
 
 Right now the code is heavily based around using a USB PS1 controller, would be nice to support other controllers
