@@ -2,10 +2,8 @@
 //TODO 
 //Recorded filesize is smaller than memory contents?
 //Losing sync after a couple of minutes?
-// Fix argv/argc, use getopt.h?
 //And for that matter, use errno.h
 //Improve general program flow
-//*** glibc detected *** ./snesbot: double free or corruption (!prev): 0x01907178 ***
 #include <wiringPi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +15,7 @@
 #include "snesbot.h"
 #include <sys/time.h>
 #include <getopt.h>
+#include <arpa/inet.h>
 
 //Command line variables
 int keyboard_input = 0;
@@ -74,9 +73,9 @@ unsigned long int filesize = 0;
 //SNES Controller layout
 const int buttons[NUMBUTTONS] = { X_Pin, A_Pin, B_Pin, Y_Pin, TLeft_Pin, TRight_Pin, Select_Pin, Start_Pin, Up_Pin, Down_Pin, Left_Pin, Right_Pin };
 
-const int lsnes_input_map[NUMBUTTONS] = { TRight_Pin, TLeft_Pin, X_Pin, A_Pin, Right_Pin, Left_Pin, Down_Pin, Up_Pin, Start_Pin, Select_Pin, Y_Pin, B_Pin};
+const int lsnes_input_map[NUMBUTTONS] = { B_Pin, Y_Pin, Select_Pin, Start_Pin, Up_Pin, Down_Pin, Left_Pin, Right_Pin, A_Pin, X_Pin, TLeft_Pin, TRight_Pin};
 
-const char lsnes_button_names[14][7] = {"TRight", "TLeft", "X", "A", "Right", "Left", "Down", "Up", "Start", "Select", "Y", "B"};
+const char lsnes_button_names[14][7] = {"B", "Y", "Select", "Start", "Up", "Down", "Left", "Right", "A", "X", "TLeft", "TRight"};
 
 //Button mapping for USB PS1 controller, X/Y axis is handled differently
 const int psx_mapping[14] = { X_Pin, A_Pin, B_Pin, Y_Pin, TLeft_Pin, TRight_Pin, TLeft_Pin, TRight_Pin, Select_Pin, Start_Pin };
@@ -368,7 +367,7 @@ int malloc_record_buffer (void)
 int write_mem_into_file (void)
 {
 	//Open output file
-	FILE *output_file = fopen (filename, "w");
+	FILE *output_file = fopen (filename, "wb");
 	
 	if (output_file == NULL)
 	{
@@ -476,21 +475,26 @@ void handle_exit (void)
 
 void lsnes_print_gpio (void)
 {
-	for (int i = 4; i < 16; i++)
+	for (int i = 0; i < 12; i++)
 	{
-		printf("%i %s %i\n", i, lsnes_button_names[i - 4], lsnes_buttons & (1 << (i - 1)));
+		printf("%i %s ", i, lsnes_button_names[i]);
+	
+		if ((lsnes_buttons & (1 << (i))) > 0)
+			printf ("1\n");
+		else
+			printf ("0\n");
 	}
 
 }
 
 void lsnes_write_gpio (void)
 {
-	for (int i = 4; i < 16; i++)
+	for (int i = 0; i < 12; i++)
 	{
-		if ((lsnes_buttons & (1 << (i - 1))) > 0)
-			digitalWrite(lsnes_input_map[i - 4], LOW);
+		if ((lsnes_buttons & (1 << i)) > 0)
+			digitalWrite(lsnes_input_map[i], LOW);
 		else
-			digitalWrite(lsnes_input_map[i - 4], HIGH);
+			digitalWrite(lsnes_input_map[i], HIGH);
 	}
 
 }
@@ -502,9 +506,11 @@ void lsnes_playback_interrupt (void)
 
 	latch_counter++;
 	
+	delayMicroseconds (192);
 	// Copy button state into lsnes_buttons
 	memcpy (&lsnes_buttons, input_ptr + (filepos * (sizeof(lsnes_buttons))), sizeof(lsnes_buttons));
 	
+	lsnes_buttons =	ntohs(lsnes_buttons);
 	lsnes_write_gpio ();
 
 	if (++filepos == filepos_end)
@@ -541,11 +547,12 @@ void debug_lsnes_playback (void)
 		//Copy evdev state and latch into vars
 		memcpy (&lsnes_buttons, input_ptr + (filepos * (sizeof(lsnes_buttons))), sizeof(lsnes_buttons));
 		
+		lsnes_buttons =	ntohs(lsnes_buttons);
 		//Print the values
 		if (lsnes_buttons != 0)
 		{
 			printf ("lsnes_buttons = %i filepos = %lu\n", lsnes_buttons, filepos);
-			lsnes_write_gpio ();
+			lsnes_print_gpio ();
 		}
 		//check to see if we are at the end of the input file
 		if (++filepos == filepos_end)	
@@ -568,7 +575,7 @@ void playback_interrupt (void)
 
 
 	//Wait until we are on the correct latch
-	if (latch_counter >= playback_latch)
+	if (latch_counter == playback_latch)
 	{
 		write_joystick_gpio ();
 		
@@ -584,7 +591,7 @@ void playback_interrupt (void)
 			printf("Lost sync!! expected: %lu got: %lu\n", playback_latch, latch_counter);
 		//Wait for the correct latch
 		//Make sure all events on that latch are done
-		while (latch_counter >= next_playback_latch)
+		while (latch_counter == next_playback_latch)
 		{
 			//Copy the evdev state from mem and write to GPIO
 			memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(latch_counter))), sizeof(struct js_event));
@@ -606,7 +613,7 @@ void playback_interrupt (void)
 
 void latch_interrupt (void)
 {
-	if (running)
+//	if (running)
 		latch_counter++;
 }
 
@@ -850,6 +857,7 @@ int main (int argc, char **argv)
 	int show_usage = 0;
 	int high_priority = 0;
 
+	printf("%i\n", sizeof(lsnes_buttons));
 	printf("SNESBot v3\n");
 	
 	int c;
