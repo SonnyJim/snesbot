@@ -54,21 +54,44 @@ A knockoff/broken controller for the SNES connector
 
 Games confirmed to be working:
 ------------------------------
-USA UN Squadron
+Assault Suit Vulcan
+
+Contra 3: The Alien Wars
+
+Earthworm Jim
+
+UN Squadron
 
 Super Mario Kart
 
 Wagyan Paradise
 
-Killer Instinct PAL
+Killer Instinct
 
-Super Mario All-Stars JPN
+Street Fighter 2
+
+Street Fighter 2: Turbo
+
+Super Mario All-Stars
+
+Super Mario Kart
+
+Super Mario World 2: Yoshis Story
 
 SuperGB JPN + Tetris DX
 
 SuperGB JPN + Tetris
 
 Super R-Type
+
+Games that don't work
+---------------------
+
+NBA Jam
+
+Super Tennis
+
+(I'm assuming they must use uninitilised memory to seed the RNG)
 
 Features:
 ---------
@@ -124,3 +147,5 @@ Right now the code is heavily based around using a USB PS1 controller, would be 
 Add support for SNES mouse via a USB mouse attached to the Pi.
 
 Autofire/special moves on a single button press
+
+Find out why some games don't work
