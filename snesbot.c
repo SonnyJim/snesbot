@@ -26,6 +26,9 @@ int verbose = 0;
 int debug_playback = 0;
 int wait_for_latch = 0;
 int lsnes_input_file = 0;
+//Number of latches to wait before playback
+int wait_latches = 0;
+int start_pos = 0;
 
 struct timeval start_time, end_time;
 
@@ -88,6 +91,7 @@ void wait_for_first_latch (void)
 	{
 		printf("Waiting for first latch\n");
 		while (digitalRead (Latch_Pin) == 0);
+			//delayMicroseconds (1);
 	}
 }
 
@@ -110,12 +114,12 @@ int init_gpio (void)
 	
 	//Set up pins
 	pinMode (Latch_Pin, INPUT);
-	pullUpDnControl (Latch_Pin, PUD_DOWN);
+	pullUpDnControl (Latch_Pin, PUD_OFF);
 	
 	for (i = 0; i < NUMBUTTONS; i++)
 	{
 		pinMode (buttons[i], OUTPUT);
-		pullUpDnControl (buttons[i], PUD_UP);
+		pullUpDnControl (buttons[i], PUD_OFF);
 	}
 
 	clear_buttons ();
@@ -506,6 +510,8 @@ void lsnes_playback_interrupt (void)
 
 	latch_counter++;
 	
+	if (wait_latches > latch_counter)
+		return;
 	delayMicroseconds (192);
 	// Copy button state into lsnes_buttons
 	memcpy (&lsnes_buttons, input_ptr + (filepos * (sizeof(lsnes_buttons))), sizeof(lsnes_buttons));
@@ -526,7 +532,6 @@ void calc_eof_position (void)
 		filepos_end = filesize / sizeof(lsnes_buttons);
 }
 
-
 void debug_lsnes_playback (void)
 {
 	//Copy the input file into memory
@@ -536,14 +541,10 @@ void debug_lsnes_playback (void)
 		return;
 	}
 	
-
 	calc_eof_position ();
-	
-	filepos = 0;
-	
+	filepos = start_pos;	
 	while (1)
 	{
-		latch_counter++;
 		//Copy evdev state and latch into vars
 		memcpy (&lsnes_buttons, input_ptr + (filepos * (sizeof(lsnes_buttons))), sizeof(lsnes_buttons));
 		
@@ -555,10 +556,9 @@ void debug_lsnes_playback (void)
 			lsnes_print_gpio ();
 		}
 		//check to see if we are at the end of the input file
-		if (++filepos == filepos_end)	
+		if (++filepos == filepos_end)
 			break;
 	}
-
 }
 
 
@@ -651,7 +651,8 @@ void start_playback (void)
 	{
 		// Precalculate end of file position
 		calc_eof_position ();
-		filepos = 0;
+		
+		filepos = start_pos;
 		running = 1;
 		
 		//Start playback
@@ -672,11 +673,6 @@ void debug_playback_input (void)
 		printf("Problem copying input file to memory\n");
 		return;
 	}
-	
-
-	calc_eof_position ();
-	
-	filepos = 0;
 	
 	while (1)
 	{
@@ -824,6 +820,10 @@ void snesbot (void)
 		printf ("Playing back input from %s\n", filename);
 		if (lsnes_input_file)
 			printf ("lsnes polldump input file selected\n");
+		if (wait_latches > 0)
+			printf ("Waiting %i latches before starting playback\n", wait_latches);
+		if (start_pos > 0)
+			printf ("Starting on file position %i\n", start_pos);
 		start_playback ();
 	}
 	else
@@ -840,16 +840,18 @@ void print_usage (void)
 	printf("Usage:\n");
 	printf("sudo snesbot [options] -f [filename]\n\n");
 	printf("Options:\n");
-	printf(" -P	Use higher priority\n");
+	printf(" -d	debug playback (doesn't write to GPIO)\n");
+	printf(" -f	read from/write to filename (default: %s)\n", filename);
+	printf(" -h	show this help\n\n");
 	printf(" -k	Read inputs from keyboard \n");
 	printf(" -j	Read inputs from joystick \n");
 	printf(" -l	Wait for latch pulse before starting\n");
 	printf(" -r	Record input\n");
+	printf(" -s X	Start on file position X (playback only)\n");
 	printf(" -p	Playback input\n");
-	printf(" -f	read from/write to filename (default: %s)\n", filename);
-	printf(" -d	debug playback (doesn't write to GPIO)\n");
+	printf(" -P	Use higher priority\n");
 	printf(" -v	Verbose messages\n");
-	printf(" -h	show this help\n\n");
+	printf(" -w X	Start playback after X latches\n");
 }
 
 int main (int argc, char **argv)
@@ -857,11 +859,10 @@ int main (int argc, char **argv)
 	int show_usage = 0;
 	int high_priority = 0;
 
-	printf("%i\n", sizeof(lsnes_buttons));
 	printf("SNESBot v3\n");
 	
 	int c;
-	while ((c = getopt (argc, argv, "df:jklLvhpPr")) != -1)
+	while ((c = getopt (argc, argv, "df:jklLvhpPrs:w:")) != -1)
 	{
 		switch (c)
 		{
@@ -892,6 +893,8 @@ int main (int argc, char **argv)
 				break;
 
 			case 'p':
+				//TODO Hacky hacky hacky....
+				joystick_input = 1;
 				playback_input = 1;
 				break;
 
@@ -901,6 +904,9 @@ int main (int argc, char **argv)
 
 			case 'r':
 				record_input = 1;
+				break;
+			case 's':
+				start_pos = atoi(optarg);
 				break;
 
 			case 'v':
@@ -915,6 +921,9 @@ int main (int argc, char **argv)
 			case '?':
 				if (optopt == 'c')
 					printf("Option %c requires an argument\n", optopt);
+				break;
+			case 'w':
+				wait_latches = atoi (optarg);
 				break;
 			}
 	}
@@ -957,6 +966,13 @@ int main (int argc, char **argv)
 		return 1;
 	}
 	
+	if ((wait_latches || start_pos > 0) && !playback_input)
+	{
+		printf("-w and -s options only valid during playback!\n");
+		return 1;
+	}
+
+
 	if (record_input)
 		printf("Record mode\n");
 	else if (playback_input)
