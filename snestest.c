@@ -1,25 +1,29 @@
+/*
+##############################################################################
+#	SNESBot - Pi controlled SNES Bot
+#	https://github.com/sonnyjim/snesbot/
+#
+#	Copyright (c) 2013 Ewan Meadows
+##############################################################################
+# This file is part of SNESBot:
+#
+#    SNESBot is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Lesser General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    SNESBot is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Lesser General Public License for more details.
+#
+#    You should have received a copy of the GNU Lesser General Public License
+#    along with SNESBot.  If not, see <http://www.gnu.org/licenses/>.
+##############################################################################
+*/
 
-#include <wiringPi.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <signal.h>
-#include <unistd.h>
+#include "snesbot.h"
 
-//                      WiringPi        P1 Pin
-#define B_Pin            8              // 3
-#define Y_Pin            9              // 5
-#define Select_Pin       7              // 7
-#define Start_Pin        15             // 8
-#define Up_Pin           16             // 10
-#define Down_Pin         0              // 11
-#define Left_Pin         1              // 12
-#define Right_Pin        2              // 13
-#define A_Pin            3              // 15
-#define X_Pin            4              // 16
-#define TLeft_Pin        5              // 18
-#define TRight_Pin       12             // 19
-
-#define latchPin 13
 
 float latched = 0;
 int interrupts_enabled = 0;
@@ -46,7 +50,8 @@ int init_gpio (void)
 	if (wiringPiSetup () == -1)
 		return 1;
 	//Set up pins
-	pinMode (latchPin, INPUT);
+	pinMode (Latch_Pin, INPUT);
+	pullUpDnControl (Latch_Pin, PUD_UP);
 	
 	pinMode (B_Pin, OUTPUT);
 	pinMode (Y_Pin, OUTPUT);
@@ -64,7 +69,7 @@ int init_gpio (void)
 	return 0;
 }
 
-void latchPin_interrupt (void)
+void Latch_Pin_interrupt (void)
 {
 	if (interrupts_enabled)
 		latched++;
@@ -72,8 +77,9 @@ void latchPin_interrupt (void)
 
 void setup_interrupts (void)
 {
-	wiringPiISR (latchPin, INT_EDGE_RISING, &latchPin_interrupt);
+	wiringPiISR (Latch_Pin, INT_EDGE_RISING, &Latch_Pin_interrupt);
 }
+
 void read_interrupts (void)
 {
 	float calc;
@@ -96,7 +102,7 @@ void read_interrupts (void)
 	
 		//Calculate and print results
 		printf ("Total Latches: %f\n", latched);
-		calc = 10000 / latched;
+		calc = latched / 100;
 		printf ("Latches/sec: %f\n", calc);
 		pass++;
 	}
@@ -117,11 +123,11 @@ int main (void)
 	
 	//Wait for first latch
 	printf ("Waiting for first latch\n");
-	while (digitalRead (latchPin) == 0)
+	while (digitalRead (Latch_Pin) == 0)
 		delayMicroseconds (10);
-	printf ("Got latch! Waiting 10 seconds\n\n\n");
+	//printf ("Got latch! Waiting 10 seconds\n\n\n");
 	//Wait for game to settle
-	sleep (10);
+	//sleep (10);
 	read_interrupts ();
 	return 0;
 }
