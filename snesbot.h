@@ -1,3 +1,27 @@
+/*
+##############################################################################
+#	SNESBot - Pi controlled SNES Bot
+#	https://github.com/sonnyjim/snesbot/
+#
+#	Copyright (c) 2013 Ewan Meadows
+##############################################################################
+# This file is part of SNESBot:
+#
+#    SNESBot is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Lesser General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    SNESBot is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Lesser General Public License for more details.
+#
+#    You should have received a copy of the GNU Lesser General Public License
+#    along with SNESBot.  If not, see <http://www.gnu.org/licenses/>.
+##############################################################################
+*/
+
 // 			WiringPi	P1 Pin
 #define B_Pin		 8 		// 3
 #define Y_Pin		 9 		// 5
@@ -14,10 +38,14 @@
 
 #define Latch_Pin	 13 		// 21
 
-#define RECBUFSIZE	1024 * 1024 * 16 //Set record buffer to 16MB
+//Set record buffer to 16MB
+#define RECBUFSIZE	1024 * 1024 * 16 
 
 //How many SNES buttons there are
 #define NUMBUTTONS	12
+
+//Magic file number
+#define FILEMAGIC	0xBEC16260
 
 #include <wiringPi.h>
 #include <stdio.h>

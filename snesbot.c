@@ -99,6 +99,9 @@ const int psx_mapping[14] = { X_Pin, A_Pin, B_Pin, Y_Pin, TLeft_Pin, TRight_Pin,
 
 const char button_names[14][7] = { "X", "A", "B", "Y", "Exit", "TRight", "TLeft", "TRight", "Select", "Start" };
 
+//Magic number for SNESBot recorded files
+long filemagic = FILEMAGIC;
+
 void signal_handler (int signal)
 {
 	printf ("\nSIGINT detected, exiting\n");
@@ -399,13 +402,17 @@ int write_mem_into_file (void)
 		return 1;
 	}
 	
+	//Write magic number to file header
+	fwrite (&filemagic, 1, sizeof(filemagic), output_file);
+
 	//Calculate filesize
 	filesize = (sizeof(struct js_event) + sizeof(latch_counter)) * filepos;
-	printf ("Recorded %lu bytes\n", filesize);
+	printf ("Recorded %lu bytes of input\n", filesize);
 	
 	//Store to output file
 	long result = fwrite (output_ptr, 1, filesize, output_file);
-	printf ("Wrote %lu bytes to %s\n", result, filename);
+	printf ("Wrote %lu bytes to %s\n", result + sizeof(filemagic), filename);
+	fclose(output_file);
 	return 0;
 }
 
@@ -419,15 +426,38 @@ int read_file_into_mem (void)
 		printf ("Could not open %s for reading\n", filename);
 		return 1;
 	}
+	
+	//Try to detect magic number in header
+	if (!lsnes_input_file)
+	{
+		long filemagic_check;
+		fread (&filemagic_check, 1, sizeof(filemagic), input_file);
+		if (filemagic_check != filemagic)
+		{
+			printf ("Incompatible file type detected!\n");
+			return 1;
+		}
+		else 
+			printf ("SNESBot filetype detected\n");
+	}
 
 	//Seek to the end
 	fseek (input_file, 0, SEEK_END);
 	//Find out how many bytes it is
 	filesize = ftell(input_file);
 	
+
 	//Rewind it back to the start ready for reading into memory
 	rewind (input_file);	
 	
+	//Strip off file magic number
+	if (!lsnes_input_file)
+	{
+		filesize = filesize - sizeof(filemagic);
+		//Seek past the magic number
+		fseek (input_file, sizeof(filemagic), 0);
+	}
+
 	//Allocate some memory
 	input_ptr = malloc (filesize);
 	if (input_ptr == NULL)
@@ -562,8 +592,10 @@ void debug_lsnes_playback (void)
 	}
 	
 	calc_eof_position ();
-	filepos = start_pos;	
-	while (1)
+	filepos = start_pos;
+	running = 1;
+
+	while (running)
 	{
 		//Copy evdev state and latch into vars
 		memcpy (&lsnes_buttons, input_ptr + (filepos * (sizeof(lsnes_buttons))), sizeof(lsnes_buttons));
@@ -577,7 +609,7 @@ void debug_lsnes_playback (void)
 		}
 		//check to see if we are at the end of the input file
 		if (++filepos == filepos_end)
-			break;
+			running = 0;
 	}
 }
 
@@ -700,8 +732,9 @@ void debug_playback_input (void)
 	
 	calc_eof_position ();
 	filepos = start_pos;
+	running = 1;
 
-	while (1)
+	while (running)
 	{
 		//Copy evdev state and latch into vars
 		memcpy (&ev, input_ptr + (filepos * (sizeof(struct js_event) + sizeof(latch_counter))), sizeof(struct js_event));
@@ -712,7 +745,7 @@ void debug_playback_input (void)
 		
 		//check to see if we are at the end of the input file
 		if (++filepos == filepos_end)	
-			break;
+			running = 0;
 	}
 }
 
