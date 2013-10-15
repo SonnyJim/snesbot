@@ -35,10 +35,8 @@ Live input was working fine, both from a USB keyboard and a PS1 controller conne
 
 After a bit more playing around I had a bit of a eureka moment, where I found out that I was supplying the 4021's with 3.3V instead of 5V.  Also I hadn't put in a blocking diode to stop current flow back into the SNES.  Once I had fixed both of these problems playback worked a *lot* better.
 
-Current status of record/playback is that it works, although it loses sync after a couple of minutes.  I've tested it with:
-
 Hardware required:
------------------
+------------------
 A Raspberry Pi + SD card + keyboard / joystick
 
 2 x CD4021B CMOS shift registers
@@ -51,6 +49,13 @@ An old floppy cable or something to break out the GPIO pins
 
 A knockoff/broken controller for the SNES connector
 
+Software needed:
+----------------
+a C compiler
+
+Automake
+
+WiringPi library by gordonDragon
 
 Games confirmed to be working:
 ------------------------------
@@ -91,7 +96,9 @@ NBA Jam
 
 Super Tennis
 
-(I'm assuming they must use uninitilised memory to seed the RNG)
+Speedy Gonzales
+
+Why they don't work is a bit of a mystery to me at the moment.  As the code that reads the controller interrupts isn't the same for each game, it could be that my bot isn't precise enough with the timings.  Also some games use uninitialised memory as the seed for the PRNG.  I'll have to run through them with a SNES debugger at some point
 
 Features:
 ---------
@@ -135,6 +142,8 @@ Load with:
 sudo ./snesbot -l -L -p -j -f filename.dump
 
 Turn on SNES and hopefully watch it do incredible things
+
+I have included a script for snes9x-rr, but unfortunately it seems that the emulation isn't accurate enough, especially if there are 'lag frames' during ganmeplay.
 
 TODO:
 ----
