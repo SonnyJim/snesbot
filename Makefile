@@ -26,9 +26,8 @@
 CC	= gcc
 INCLUDE	= -I/usr/local/include
 CFLAGS	= $(DEBUG) -Wall $(INCLUDE) -Winline -pipe -std=c99 -O3
-
 LDFLAGS	= -L/usr/local/lib
-LDLIBS    = -lwiringPi -lwiringPiDev
+LDLIBS	= -lwiringPi -lwiringPiDev
 
 all: snesbot snestest
 
