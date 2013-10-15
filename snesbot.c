@@ -27,6 +27,7 @@
 TODO 
 Use errno.h
 Improve general program flow
+Bug with Total latches
 */
 
 #include "snesbot.h"
@@ -40,12 +41,14 @@ int verbose = 0;
 int debug_playback = 0;
 int wait_for_latch = 0;
 int lsnes_input_file = 0;
+
 //Number of latches to wait before playback
 int wait_latches = 0;
 int start_pos = 0;
 
 struct timeval start_time, end_time;
 
+//Default filename
 char *filename = "snesbot.rec";
 
 //Number of SNES latches read by GPIO latch pin
@@ -55,9 +58,6 @@ unsigned long int latch_counter = 0;
 unsigned long int old_latch = 0;
 
 int running = 0;
-
-//Latency measurement
-int total_latency = 0;
 
 FILE *js_dev;
 FILE *kb_dev;
@@ -99,12 +99,18 @@ const int psx_mapping[14] = { X_Pin, A_Pin, B_Pin, Y_Pin, TLeft_Pin, TRight_Pin,
 
 const char button_names[14][7] = { "X", "A", "B", "Y", "Exit", "TRight", "TLeft", "TRight", "Select", "Start" };
 
+void signal_handler (int signal)
+{
+	printf ("\nSIGINT detected, exiting\n");
+	running = 0;
+}
+
 void wait_for_first_latch (void)
 {
 	if (wait_for_latch && !debug_playback)
 	{
 		printf("Waiting for first latch\n");
-		while (digitalRead (Latch_Pin) == 0);
+		while (digitalRead (Latch_Pin) == 0 && running);
 			//delayMicroseconds (1);
 	}
 }
@@ -675,7 +681,9 @@ void start_playback (void)
 		
 		//Wait for file to finish playback
 		while (running)
+		{
 			sleep (1);
+		}
 	}
 }
 
@@ -816,6 +824,8 @@ void read_keyboard (void)
 
 void snesbot (void)
 {
+	//Setup signal handler
+	signal(SIGINT, signal_handler);
 	if (keyboard_input)
 	{
 		printf("Reading input from keyboard\n");
