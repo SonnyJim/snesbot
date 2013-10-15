@@ -14,7 +14,7 @@ How it works:
 -------------
 The SNES controller protocol is fairly simple, every 16.67ms (or 60Hz for NTSC, 50Hz for PAL consoles) it sends out a latch pulse to each controller, which contain 2 x 4021 shift registers.  These shift registers then clock out the 16 bits of data to the console.  Although the latch pulse is fairly slow, the clock is fairly quick, with 16us between clock pulses.
 
-So far so good, but what about randomness in games?  Well, the good thing is that the SNES lacks a source of entropy (hardware random number generator or even a realtime clock), so most games use an absurdly simple principle.  Count the number of latches before a controller input is pressed and use that to see a RNG.  Also bear in mind that the SNES doesn't start sending out the latch pulses until the CPU is working correctly, this means that as long as we send out the same button presses on exactly the same latch on each poweron, then our RNG will act *exactly* the same, with the same enemy patterns, powerups, items etc.
+So far so good, but what about randomness in games?  Well, the good thing is that the SNES lacks a source of entropy (hardware random number generator or even a realtime clock), so most games use an absurdly simple principle.  Count the number of latches before a controller input is pressed and use that to see a PRNG.  Also bear in mind that the SNES doesn't start sending out the latch pulses until the CPU is working correctly, this means that as long as we send out the same button presses on exactly the same latch on each poweron, then our PRNG will act *exactly* the same, with the same enemy patterns, powerups, items etc.
 
 My different approaches:
 -----------------------
@@ -31,13 +31,31 @@ I also needed something to act as a buffer/level convertor for the latch pulse, 
 
 To my amazement it worked and it was detected as a proper controller the Nintendo Controller Test software!
 
-Live input was working fine, both from a USB keyboard and a PS1 controller connected via a USB adapter, but recording and playback would lose sync after a few button presses, which was slightly disheartening.  Perhaps all those people telling me that I wouldn't be able to make it work on a Pi were right and I've have to change my approach again to use a microcontroller instead.
+Live input was working fine, both from a USB keyboard and a PS1 controller connected via a USB adapter, but recording and playback would lose sync after a few button presses, which was slightly disheartening.  Perhaps all those people telling me that I wouldn't be able to make it work with the overhead of Linux were right and I've have to change my approach again to use a microcontroller instead.
 
-After a bit more playing around I had a bit of a eureka moment, where I found out that I was supplying the 4021's with 3.3V instead of 5V.  Also I hadn't put in a blocking diode to stop current flow back into the SNES.  Once I had fixed both of these problems playback worked a *lot* better.
+After a bit more playing around I had a bit of a eureka moment, where I found out that I was supplying the 4021's with 3.3V instead of 5V.  Also I hadn't put in a blocking diode to stop current flow back into the SNES.  Once I had fixed both of these problems playback worked a *lot* better.  I'm not quite sure why live input worked and recorded didn't at 3.3V, but I'm certainly glad it's working at 5V!
+
+TAS Videos
+----------
+
+So I was at the stage where I could playback from my own playback format and was successful with roughly 90% of the games I tried.  So it was time to look at working on using emulator movie files.  These are files recorded by the emulator that are used to playback high score attempts/speed runs etc.  Sometimes emulators are used to create bizarre and lightning quick videos called 'Tool Assisted Speedruns'.  These would be a good source of videos to demonstrate the abilities of SNESBot.  To try and get things to work first time, I went the simple route.  I chose a TAS video that had previously been verifed on hardware, which was the KFC-Mario speedrun of Super Mario All-Stars: Super Mario Bros. Lost levels.  Because I was intending to run on hardware, I would need to use a pretty accurate emulator, so lsnes looked like a good candidate.  I found a Lua script by Ilari to output the controller data I needed for the emulator and wrote some importing code for my bot.  After a few false starts, ILari was particulary helpful in getting it working.  So I was at the stage where I coulld give this TAS video a try.
+
+I grabbed my copy of SMAS, plugged it in and it went through the title screens, Mario started to run and then.
+
+Nothing.  He just sat there hopping on the spot and generally not doing what I wanted him to do.
+
+This was slightly annoying, so I tried it with the console in PAL rather than NTSC, still the same.  I took my SNES apart and saw the one of the legs of PPU2 had snapped off after I installed a SuperCIC mod.  I believe this was causing it to run in permenant PAL mode, throwing off the timings.  With a bit of delicate surgery, I managed to get it soldered back on, setup again and hit start.  And I watched Mario go absolutely nuts for 33 minutes, flying impossibly through levels, then destroy Bowser and complete the game.
+
+Feeling rather pleased. my next stop was to write an importer for SNES9X emulator movie files, which hasn't worked out so well.  Which is a shame, as was a popular file format, with a lot of TAS runs available.  Because the TAS videos rely on very sharp timing, if the emulation isn't exactly the same as a SNES, the frames 'desync' and the Pi/SNES lose sync with each other.
+
+This normally happens during a 'lag frame', which is a frame where the SNES CPU is too busy to poll the joystick inputs, because it's too busy drawing enemies exploding etc.  The reason lsnes input files work and SNES9x files don't is down to the way they emulate these lag frames.
+
+I really need to get myself a logic analsyer as so far I've been doing this 'blind'.
+
 
 Hardware required:
 ------------------
-A Raspberry Pi + SD card + keyboard / joystick
+A Raspberry Pi + SD card + USB keyboard / joystick
 
 2 x CD4021B CMOS shift registers
 
@@ -51,10 +69,7 @@ A knockoff/broken controller for the SNES connector
 
 Software needed:
 ----------------
-a C compiler
-
-Automake
-
+Raspbian
 WiringPi library by gordonDragon
 
 Games confirmed to be working:
@@ -98,7 +113,7 @@ Super Tennis
 
 Speedy Gonzales
 
-Why they don't work is a bit of a mystery to me at the moment.  As the code that reads the controller interrupts isn't the same for each game, it could be that my bot isn't precise enough with the timings.  Also some games use uninitialised memory as the seed for the PRNG.  I'll have to run through them with a SNES debugger at some point
+Why they don't work is a bit of a mystery to me at the moment.  As the code that reads the controller interrupts isn't the same for each game, it could be that my bot isn't precise enough with the timings.  Also some games use uninitialised memory as the seed for the PRNG, which means the game won't be exactly the same with the same inputs.  I'll have to run through them with a SNES debugger at some point
 
 Features:
 ---------
