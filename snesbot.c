@@ -114,12 +114,12 @@ int init_gpio (void)
 	
 	//Set up pins
 	pinMode (Latch_Pin, INPUT);
-	pullUpDnControl (Latch_Pin, PUD_OFF);
+	pullUpDnControl (Latch_Pin, PUD_DOWN);
 	
 	for (i = 0; i < NUMBUTTONS; i++)
 	{
 		pinMode (buttons[i], OUTPUT);
-		pullUpDnControl (buttons[i], PUD_OFF);
+		pullUpDnControl (buttons[i], PUD_UP);
 	}
 
 	clear_buttons ();
@@ -512,7 +512,7 @@ void lsnes_playback_interrupt (void)
 	
 	if (wait_latches > latch_counter)
 		return;
-	delayMicroseconds (192);
+	//delayMicroseconds (192);
 	// Copy button state into lsnes_buttons
 	memcpy (&lsnes_buttons, input_ptr + (filepos * (sizeof(lsnes_buttons))), sizeof(lsnes_buttons));
 	
@@ -526,10 +526,10 @@ void lsnes_playback_interrupt (void)
 // Precalculate end of file position
 void calc_eof_position (void)
 {
-	if (!lsnes_input_file)
-		filepos_end = filesize / (sizeof(struct js_event) + sizeof(latch_counter));
-	else
+	if (lsnes_input_file)
 		filepos_end = filesize / sizeof(lsnes_buttons);
+	else
+		filepos_end = filesize / (sizeof(struct js_event) + sizeof(latch_counter));
 }
 
 void debug_lsnes_playback (void)
@@ -613,7 +613,7 @@ void playback_interrupt (void)
 
 void latch_interrupt (void)
 {
-//	if (running)
+	if (running)
 		latch_counter++;
 }
 
@@ -667,6 +667,7 @@ void start_playback (void)
 void debug_playback_input (void)
 {
 
+
 	//Copy the input file into memory
 	if (read_file_into_mem () == 1)
 	{
@@ -674,6 +675,9 @@ void debug_playback_input (void)
 		return;
 	}
 	
+	calc_eof_position ();
+	filepos = start_pos;
+
 	while (1)
 	{
 		//Copy evdev state and latch into vars
