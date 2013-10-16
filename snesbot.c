@@ -1038,6 +1038,9 @@ int main (int argc, char **argv)
 			case '?':
 				if (optopt == 'c')
 					printf("Option %c requires an argument\n", optopt);
+				else if (isprint (optopt))
+					printf ("Invalid options\n");
+				show_usage = 1;
 				break;
 			case 'w':
 				wait_latches = atoi (optarg);
