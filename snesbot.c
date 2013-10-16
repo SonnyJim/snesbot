@@ -535,8 +535,9 @@ void handle_exit (void)
 
 		if (record_after_playback)
 		{
-			printf ("Adding memory contents to %s\n", filename);
-			if (append_mem_to_file () == 1)
+			if (playback_finished == 0)
+				printf("Aborting recording after playback\n");
+			else if (append_mem_to_file () == 1)
 				printf("Problem adding memory contents to file\n");
 		}
 		else if (write_mem_into_file () == 1)
@@ -935,7 +936,7 @@ void snesbot (void)
 		
 		start_playback ();
 		
-		if (record_after_playback)
+		if (record_after_playback && playback_finished)
 			record_joystick_inputs ();
 	}
 	else
