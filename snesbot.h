@@ -47,6 +47,8 @@
 //Magic file number
 #define FILEMAGIC	0xBEC16260
 
+//Size of each filepos chunk
+#define CHUNK_SIZE (sizeof(unsigned long int) + sizeof(struct js_event))
 #include <wiringPi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,6 +57,7 @@
 #include <linux/joystick.h>
 #include <fcntl.h>
 #include <string.h>
+#include <errno.h>
 #include <sys/time.h>
 #include <getopt.h>
 #include <arpa/inet.h>
