@@ -31,7 +31,6 @@ Bug with Total latches
 */
 
 #include "snesbot.h"
-
 //Command line variables
 int keyboard_input = 0;
 int joystick_input = 0;
@@ -47,6 +46,7 @@ int record_after_playback = 0;
 //Number of latches to wait or skip before playback
 int wait_latches = 0;
 int start_pos = 0;
+unsigned long int end_latch = 0;
 
 struct timeval start_time, end_time;
 
@@ -407,8 +407,9 @@ int append_mem_to_file (void)
 		printf("Not writing memory contents to %s\n", filename);
 		return 0;
 	}
-	//Reopen for appending
+	//Open for appending
 	output_file = fopen (filename, "a+b");
+	
 	if (output_file == NULL)
 	{
 		printf("Problem opening %s for appending\n", filename);
@@ -419,7 +420,6 @@ int append_mem_to_file (void)
 	filesize = CHUNK_SIZE * filepos;
 	printf ("Recorded %lu bytes of input\n", filesize);
 	
-	//Store to output file
 	result = fwrite (output_ptr, 1, filesize, output_file);
 	printf ("Appended %lu bytes to %s\n", result, filename);
 	fclose(output_file);
@@ -553,16 +553,12 @@ void handle_exit (void)
 		if (!debug_playback)
 		{
 			print_time_elapsed ();
+			//Free memory used by input file
 			free (input_ptr);
 		}
 		
 		printf ("\nFinished playback\n");
-		//Free memory used by input file
-		
-		if (playback_latch > next_playback_latch)
-			printf ("Total latches: %lu\n", playback_latch);
-		else
-			printf ("Total latches: %lu\n", next_playback_latch);
+		printf ("Total latches: %lu\n", latch_counter);
 	}
 
 	if (joystick_input)
@@ -664,7 +660,13 @@ void playback_interrupt (void)
 	latch_counter++;
 	if (!running || playback_finished)
 		return;
-		
+	
+	if (latch_counter == end_latch)
+	{
+		playback_finished = 1;
+		running = 0;
+		return;
+	}
 
 	//Copy evdev and latch state into vars
 	memcpy (&ev, input_ptr + (filepos * CHUNK_SIZE), sizeof(struct js_event));
@@ -676,7 +678,7 @@ void playback_interrupt (void)
 	{
 		write_joystick_gpio ();
 		
-		if (++filepos == filepos_end)
+		if ((++filepos == filepos_end))
 		{
 			playback_finished = 1;
 			running = 0;
@@ -697,8 +699,9 @@ void playback_interrupt (void)
 
 			write_joystick_gpio ();
 			
-			if (++filepos == filepos_end)
+			if ((++filepos == filepos_end))
 			{
+				playback_finished = 1;
 				running = 0;
 				return;
 			}
@@ -934,6 +937,9 @@ void snesbot (void)
 		if (start_pos > 0)
 			printf ("Starting on file position %i\n", start_pos);
 		
+		if (end_latch > 0)
+			printf ("Ending playback on latch %lu\n", end_latch);
+
 		start_playback ();
 		
 		if (record_after_playback && playback_finished)
@@ -955,6 +961,7 @@ void print_usage (void)
 	printf("Options:\n");
 	printf(" -c	Start recording after playback has finished\n");
 	printf(" -d	debug playback (doesn't write to GPIO)\n");
+	printf(" -e X	End playback on latch X\n");
 	printf(" -f	read from/write to filename (default: %s)\n", filename);
 	printf(" -h	show this help\n\n");
 	printf(" -k	Read inputs from keyboard \n");
@@ -976,7 +983,7 @@ int main (int argc, char **argv)
 	printf("SNESBot v3\n");
 	
 	int c;
-	while ((c = getopt (argc, argv, "cdf:jklLvhpPrs:w:")) != -1)
+	while ((c = getopt (argc, argv, "cde:f:jklLvhpPrs:w:")) != -1)
 	{
 		switch (c)
 		{
@@ -989,7 +996,9 @@ int main (int argc, char **argv)
 				playback_input = 1;
 				verbose = 1;
 				break;
-
+			case 'e':
+				end_latch = atoi (optarg);
+				break;
 			case 'f':
 				filename = optarg;
 				break;
@@ -1092,6 +1101,11 @@ int main (int argc, char **argv)
 		return 1;
 	}
 
+	if (end_latch > 0 && (start_pos > 0 || wait_latches > 0 || record_after_playback))
+	{
+		printf("Can't specify end latch with start/wait latch options\n");
+		return 1;
+	}
 
 	if (record_input)
 	{
@@ -1105,6 +1119,8 @@ int main (int argc, char **argv)
 		printf("Playback mode\n");
 	else if (debug_playback)
 		printf("Debug playback mode\n");
+	else if (record_after_playback)
+		printf("Recording after playback\n");
 	else
 		printf("Live Input mode\n");
 	
