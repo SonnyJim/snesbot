@@ -42,6 +42,7 @@ Program ASCII Turbo boxes
 */
 
 #include <stdio.h>
+#include <getopt.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <errno.h>
@@ -67,14 +68,12 @@ Program ASCII Turbo boxes
 #define FILEMAGIC	0xBEC16260
 #define CHUNK_SIZE (sizeof(unsigned long int) + sizeof(unsigned short int))
 //Pointers to input/output buffers
-void *input_ptr;
-void *ptr;
+char *input_ptr;
+char *ptr;
 //Magic number for SNESBot recorded files
 long filemagic = FILEMAGIC;
 //Default filename
 char *filename = "snes.rec";
-// How big (in bytes) the playback/record file is
-unsigned long int filesize = 0;
 
 
 unsigned short int inputs[16] = {
@@ -88,6 +87,11 @@ states_t state;
 
 unsigned long int latch_counter = 0;
 void latch_interrupt (void);
+int write_mem_into_file (void);
+int read_file_into_mem (void);
+void playback_read_next ();
+void record_player_inputs ();
+void read_player_inputs ();
 
 struct joy_t {
   int pisnes_num;
@@ -99,12 +103,21 @@ struct joy_t p1;
 struct joy_t p2;
 
 struct record_t {
-  int *ptr;
+  void *ptr;
+  int filesize;
   long int filepos;
 };
 
-struct record_t record;
+struct playback_t {
+  void *ptr;
+  long int filepos;
+  long int filesize;
+  unsigned long int next_latch;
+  unsigned short int next_input;
+};
 
+struct record_t record;
+struct playback_t playback;
 static void print_buttons (unsigned short int p1, unsigned short int p2)
 {
 	printf("Player 1: %#010x %lu\n", p1, latch_counter);
@@ -136,7 +149,6 @@ static void print_buttons (unsigned short int p1, unsigned short int p2)
 	if ((p2 & SNES_R)      != 0) printf ("|  R   " ) ; else printf (BLANK) ;
 	printf ("|\n") ;
 }
-
 //TODO Monitor the +5V SNES line
 void wait_for_first_latch (void)
 {
@@ -205,24 +217,27 @@ static void set_inputs (int pin_base, unsigned short int input)
 
 void latch_interrupt (void)
 {
+  if ((state == STATE_PLAYBACK) && (playback.next_latch == latch_counter))
+  {
+    //fprintf (stdout, "next latch %i\n", playback.next_latch);
+    //We are due to load up the next set of inputs
+    set_inputs(PIN_BASE, p1.input);
+    playback_read_next ();
+  } 
+  else if (state == STATE_RECORDING && p1.input != p1.input_old)
+  {
+    p1.input_old = p1.input;
+    record_player_inputs ();
+    set_inputs(PIN_BASE, p1.input);
+  }
+  else if (state == STATE_RUNNING && p1.input != p1.input_old)
+  {
+    p1.input_old = p1.input;
+    set_inputs(PIN_BASE, p1.input);
+  }
+
   latch_counter++;
 }
-
-//Memory routines
-int malloc_record_buffer (void)
-{
-  //Allocate memory for recorded inputs
-  ptr = malloc (RECBUFSIZE);
-  if (ptr == NULL)
-  {
-    printf("Unable to allocate %i bytes for record buffer\n", RECBUFSIZE);
-    return 1;
-  }
-  else
-    printf("%i bytes allocated for record buffer\n", RECBUFSIZE);
-  return 0;
-}
-
 
 int joystick_setup ()
 {
@@ -232,13 +247,12 @@ int joystick_setup ()
     fprintf (stdout, "Error in setupSnesJoystick\n");
     return 1;
   }
+  
   if (detectSnesJoystick (p1.pisnes_num) != 0)
   {
     fprintf (stdout, "Didn't detect a SNES joystick in port 1\n");
     return 1;
   }
-
-  //joy2 = setupSnesJoystick ( 1, 0, 15);
 
   if (p1.pisnes_num == -1)
   {
@@ -277,7 +291,63 @@ void check_player_inputs ()
 void read_player_inputs ()
 {
     p1.input = readSnesJoystick (p1.pisnes_num) ;
-    check_player_inputs();
+    //check_player_inputs();
+}
+
+int read_options (int argc, char **argv)
+{
+  int c;
+  while ((c = getopt (argc, argv, "rp")) != -1)
+  {
+      switch (c)
+      {
+        case 'r':
+          if (state == STATE_PLAYBACK)
+          {
+            fprintf (stderr, "Error, both playback and record specified\n");
+            return 1;
+          }
+          state = STATE_RECORDING;
+          break;
+        case 'p':
+          if (state == STATE_RECORDING)
+          {
+            fprintf (stderr, "Error, both playback and record specified\n");
+            return 1;
+          }
+          state = STATE_PLAYBACK;
+          break;
+      }
+  }
+  return 0;
+}
+
+//Reads the next set of inputs ready to be pressed
+void playback_read_next ()
+{
+  memcpy (&playback.next_latch, playback.ptr + (playback.filepos * CHUNK_SIZE), sizeof(latch_counter));
+  memcpy (&p1.input, playback.ptr + sizeof(latch_counter) + (playback.filepos * CHUNK_SIZE), sizeof(p1.input));
+  playback.filepos++;
+  if ((playback.filepos * CHUNK_SIZE) > playback.filesize)
+  {
+    fprintf (stdout, "Playback finished\n");
+    state = STATE_EXITING;
+  }
+  //fprintf (stdout, "%i, %x, %i\n", latch_counter, p1.input, playback.next_latch);
+}
+
+int playback_start ()
+{
+  if (read_file_into_mem () != 0)
+  {
+    fprintf (stderr, "Error reading input file into memory\n");
+    return 1;
+  }
+  fprintf (stdout, "Filesize: %i\n", playback.filesize);
+  //Load up the initial inputs
+  playback_read_next ();
+
+  return 0;
 }
 
 int record_start ()
@@ -299,39 +369,54 @@ int record_start ()
 
 void record_player_inputs ()
 {
-  memcpy (record.ptr + (record.filepos * CHUNK_SIZE), &latch_counter, sizeof(latch_counter));
+  fprintf (stdout, "size %i ptr: %#10x\n", record.filepos * CHUNK_SIZE, record.ptr + (record.filepos * CHUNK_SIZE));
+  memcpy (record.ptr + record.filepos * CHUNK_SIZE, &latch_counter, sizeof(latch_counter));
   memcpy (record.ptr + sizeof(latch_counter) + (record.filepos * CHUNK_SIZE), &p1.input, sizeof(p1.input));
   record.filepos++;
 }
 
-void main_loop ()
+void record_save ()
 {
-  //TODO While SNES is on, halt and show message to turn off
-  if (state == STATE_PLAYBACK || state == STATE_RECORDING)
-    wait_for_first_latch ();
-  
+  if (record.filepos > 0)
+  {
+    write_mem_into_file ();
+  }
+}
+
+void main_loop ()
+{ 
   if (state == STATE_RECORDING)
+  {
+    fprintf (stdout, "RECORDING\n");
     if (record_start () != 0)
     {
       fprintf (stderr, "Error setting up record buffer\n");
       state = STATE_EXITING;
     }
-
-
-  while (state != STATE_EXITING)
+  }
+  else if (state == STATE_PLAYBACK)
   {
-    read_player_inputs();
-    if (p1.input != p1.input_old)
+    fprintf (stdout, "PLAYBACK\n");
+    if (playback_start () != 0)
     {
-      p1.input_old = p1.input;
-      print_buttons (p1.input, p2.input);
-      set_inputs (PIN_BASE, p1.input);
-      record_player_inputs ();
+      fprintf (stderr, "Error setting up playback buffer\n");
+      state = STATE_EXITING;
     }
   }
+  clear_all_buttons (); 
+  //TODO While SNES is on, halt and show message to turn off
+  if (state == STATE_PLAYBACK || state == STATE_RECORDING)
+    wait_for_first_latch ();
+  while (state != STATE_EXITING)
+  {
+    if (state != STATE_PLAYBACK)
+      read_player_inputs();
+  }
+
+  record_save ();
 }
 
-int main ()
+int main (int argc, char **argv)
 {
   state = STATE_INIT;
   if (setup () != 0)
@@ -339,13 +424,24 @@ int main ()
     fprintf (stdout, "Error setting up\n");
     return 1;
   }
-  state = STATE_RUNNING;
+  
+  if (read_options (argc, argv) != 0)
+  {
+    fprintf (stderr, "Error reading options\n");
+    return 1;
+  }
+  
+  if (state == STATE_INIT)
+  {
+    //User didn't chose either record or replay, falling back to passthrough
+    state = STATE_RUNNING;
+  }
+
   main_loop ();
  
   fprintf (stdout, "Exiting...\n");
   return 0 ;
 }
-/*
 int write_mem_into_file (void)
 {
 	//Open output file
@@ -358,15 +454,15 @@ int write_mem_into_file (void)
 	}
 	
 	//Write magic number to file header
-	fwrite (&filemagic, 1, sizeof(filemagic), output_file);
+//	fwrite (&filemagic, 1, sizeof(filemagic), output_file);
 
 	//Calculate filesize
-	filesize = CHUNK_SIZE * filepos;
-	printf ("Recorded %lu bytes of input\n", filesize);
+	record.filesize = CHUNK_SIZE * record.filepos;
+	printf ("Recorded %lu bytes of input\n", record.filesize);
 	
 	//Store to output file
-	long result = fwrite (ptr, 1, filesize, output_file);
-	printf ("Wrote %lu bytes to %s\n", result + sizeof(filemagic), filename);
+	long result = fwrite (record.ptr, 1, record.filesize, output_file);
+	printf ("Wrote %lu bytes to %s\n", result, filename);
 	fclose(output_file);
 	return 0;
 }
@@ -381,7 +477,7 @@ int read_file_into_mem (void)
 		printf ("Could not open %s for reading\n", filename);
 		return 1;
 	}
-        
+        /*        
         long filemagic_check;
         fread (&filemagic_check, 1, sizeof(filemagic), input_file);
         if (filemagic_check != filemagic)
@@ -391,36 +487,37 @@ int read_file_into_mem (void)
         }
         else 
           printf ("SNESBot filetype detected\n");
-
+        */
 	//Seek to the end
 	fseek (input_file, 0, SEEK_END);
 	//Find out how many bytes it is
-	filesize = ftell(input_file);
+	playback.filesize = ftell(input_file);
 	
 
 	//Rewind it back to the start ready for reading into memory
 	rewind (input_file);	
 	
+        /*
 	//Strip off file magic number
         filesize = filesize - sizeof(filemagic);
         //Seek past the magic number
         fseek (input_file, sizeof(filemagic), 0);
+        */
 
 	//Allocate some memory
-	input_ptr = malloc (filesize);
-	if (input_ptr == NULL)
+	playback.ptr = malloc (playback.filesize);
+	if (playback.ptr == NULL)
 	{
-		printf("malloc of %lu bytes failed\n", filesize);
+		printf("malloc of %lu bytes failed\n", playback.filesize);
 		return 1;
 	}
 	else
-		printf("malloc of %lu bytes succeeded\n", filesize);
+		printf("malloc of %lu bytes succeeded\n", playback.filesize);
 	
 	//Read the input file into allocated memory
-	fread (input_ptr, 1, filesize, input_file);
-	
+	fread (playback.ptr, 1, playback.filesize, input_file);
+        playback.filepos = 0;	
 	//Close the input file, no longer needed
 	fclose (input_file);
 	return 0;
 }
-*/

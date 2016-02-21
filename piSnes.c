@@ -28,7 +28,7 @@
 
 #define	MAX_SNES_JOYSTICKS	8
 
-#define	PULSE_TIME	12
+#define	PULSE_TIME	5
 
 // Data to store the pins for each controller
 
