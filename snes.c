@@ -48,6 +48,7 @@ Program ASCII Turbo boxes
 #include <errno.h>
 #include <string.h>
 #include <signal.h>
+#include <sys/time.h>
 
 #include <wiringPi.h>
 #include <mcp23017.h>
@@ -59,7 +60,7 @@ Program ASCII Turbo boxes
 #define PIN_P1DAT 2
 
 #define PIN_BRD_OK 3 //Loopback from pin 1/3.3v to see if board is connected
-
+#define PIN_SNES_VCC 25
 #define	BLANK	"|      "
 #define PIN_BASE 120
 //Set record buffer to 16MB
@@ -118,6 +119,7 @@ struct playback_t {
 
 struct record_t record;
 struct playback_t playback;
+/*
 static void print_buttons (unsigned short int p1, unsigned short int p2)
 {
 	printf("Player 1: %#010x %lu\n", p1, latch_counter);
@@ -149,7 +151,8 @@ static void print_buttons (unsigned short int p1, unsigned short int p2)
 	if ((p2 & SNES_R)      != 0) printf ("|  R   " ) ; else printf (BLANK) ;
 	printf ("|\n") ;
 }
-//TODO Monitor the +5V SNES line
+*/
+
 void wait_for_first_latch (void)
 {
   printf("Waiting for first latch\n");
@@ -169,6 +172,11 @@ void clear_all_buttons (void)
   }
 }
 
+int snes_is_on (void)
+{
+  return digitalRead (PIN_SNES_VCC);
+}
+
 void signal_handler (int signal)
 {
 	printf ("\n\nSIGINT detected\n");
@@ -182,7 +190,10 @@ int port_setup (void)
   fprintf (stdout, "Setting up GPIO\n");
   pinMode (PIN_BRD_OK, INPUT);
   pullUpDnControl (PIN_BRD_OK, PUD_DOWN);
+  pinMode (PIN_SNES_VCC, INPUT);
+  pullUpDnControl (PIN_SNES_VCC, PUD_DOWN);
   
+    
   if (digitalRead (PIN_BRD_OK) != 1)
   {
     fprintf (stdout, "Warning:  Board not detected or 3.3v missing?\n");
@@ -219,7 +230,6 @@ void latch_interrupt (void)
 {
   if ((state == STATE_PLAYBACK) && (playback.next_latch == latch_counter))
   {
-    //fprintf (stdout, "next latch %i\n", playback.next_latch);
     //We are due to load up the next set of inputs
     set_inputs(PIN_BASE, p1.input);
     playback_read_next ();
@@ -343,7 +353,7 @@ int playback_start ()
     fprintf (stderr, "Error reading input file into memory\n");
     return 1;
   }
-  fprintf (stdout, "Filesize: %i\n", playback.filesize);
+  fprintf (stdout, "Filesize: %li\n", playback.filesize);
   //Load up the initial inputs
   playback_read_next ();
 
@@ -369,7 +379,7 @@ int record_start ()
 
 void record_player_inputs ()
 {
-  fprintf (stdout, "size %i ptr: %#10x\n", record.filepos * CHUNK_SIZE, record.ptr + (record.filepos * CHUNK_SIZE));
+  //fprintf (stdout, "size %i ptr: %#10x\n", record.filepos * CHUNK_SIZE, record.ptr + (record.filepos * CHUNK_SIZE));
   memcpy (record.ptr + record.filepos * CHUNK_SIZE, &latch_counter, sizeof(latch_counter));
   memcpy (record.ptr + sizeof(latch_counter) + (record.filepos * CHUNK_SIZE), &p1.input, sizeof(p1.input));
   record.filepos++;
@@ -393,6 +403,14 @@ void main_loop ()
       fprintf (stderr, "Error setting up record buffer\n");
       state = STATE_EXITING;
     }
+    if (snes_is_on ())
+    {
+      fprintf (stdout, "SNES power detected, please power cycle the SNES\n");
+      while (snes_is_on ()) delayMicroseconds (100);
+      fprintf (stdout, "SNES Powered off\n");
+    }
+    fprintf (stdout, "Waiting for SNES power on\n");
+    while (!snes_is_on ()) delayMicroseconds (100);
   }
   else if (state == STATE_PLAYBACK)
   {
@@ -404,15 +422,21 @@ void main_loop ()
     }
   }
   clear_all_buttons (); 
-  //TODO While SNES is on, halt and show message to turn off
+  
   if (state == STATE_PLAYBACK || state == STATE_RECORDING)
     wait_for_first_latch ();
+  
   while (state != STATE_EXITING)
   {
     if (state != STATE_PLAYBACK)
       read_player_inputs();
+    if (!snes_is_on())
+    {
+      fprintf (stdout, "SNES poweroff detected\n");
+      state = STATE_EXITING;
+    }
   }
-
+  //Always attempt a save before exiting
   record_save ();
 }
 
@@ -442,6 +466,7 @@ int main (int argc, char **argv)
   fprintf (stdout, "Exiting...\n");
   return 0 ;
 }
+
 int write_mem_into_file (void)
 {
 	//Open output file
@@ -458,7 +483,7 @@ int write_mem_into_file (void)
 
 	//Calculate filesize
 	record.filesize = CHUNK_SIZE * record.filepos;
-	printf ("Recorded %lu bytes of input\n", record.filesize);
+	printf ("Recorded %i bytes of input\n", record.filesize);
 	
 	//Store to output file
 	long result = fwrite (record.ptr, 1, record.filesize, output_file);
