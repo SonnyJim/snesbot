@@ -23,6 +23,8 @@
  */
 
 /*TODO: 
+Check to see if a joystick is there by reading in the high bits - DONE
+  
 Hook into the following lines from the SNES that we have available
 Reset (MITM SuperCIC reset line?  Might not work with SA-1)
 50/60 Hertz from the PPUs
@@ -48,10 +50,15 @@ Program ASCII Turbo boxes
 
 #include <wiringPi.h>
 #include <mcp23017.h>
-#include <piSnes.h>
-
+#include "piSnes.h"
 
 #define PIN_LIN 15 //wiring Pi 15 reads the latch from the SNES
+#define PIN_P1CLK 7 //Which GPIO are used for reading in the P1 SNES joystick
+#define PIN_P1LAT 0
+#define PIN_P1DAT 2
+
+#define PIN_BRD_OK 3 //Loopback from pin 1/3.3v to see if board is connected
+
 #define	BLANK	"|      "
 #define PIN_BASE 120
 //Set record buffer to 16MB
@@ -61,7 +68,7 @@ Program ASCII Turbo boxes
 #define CHUNK_SIZE (sizeof(unsigned long int) + sizeof(unsigned short int))
 //Pointers to input/output buffers
 void *input_ptr;
-void *output_ptr;
+void *ptr;
 //Magic number for SNESBot recorded files
 long filemagic = FILEMAGIC;
 //Default filename
@@ -75,15 +82,28 @@ unsigned short int inputs[16] = {
 	SNES_LEFT, SNES_DOWN, SNES_UP, SNES_START, SNES_SELECT, SNES_Y, SNES_B};
 
 
-typedef enum {STATE_INIT, STATE_PASSTHROUGH, STATE_RECORDING, STATE_PLAYBACK, STATE_EXITING} states_t;
+typedef enum {STATE_INIT, STATE_RUNNING, STATE_RECORDING, STATE_PLAYBACK, STATE_EXITING} states_t;
 
 states_t state;
 
 unsigned long int latch_counter = 0;
 void latch_interrupt (void);
 
-int joy1, joy2;
-unsigned short int p1_input, p2_input, p1_old, p2_old = 0x0000;
+struct joy_t {
+  int pisnes_num;
+  unsigned short int input;
+  unsigned short int input_old;
+};
+
+struct joy_t p1;
+struct joy_t p2;
+
+struct record_t {
+  int *ptr;
+  long int filepos;
+};
+
+struct record_t record;
 
 static void print_buttons (unsigned short int p1, unsigned short int p2)
 {
@@ -145,18 +165,27 @@ void signal_handler (int signal)
 
 //TODO Probe the i2c line to make sure the mcp23017 is there
 //Setup the mcp23017 and Pi GPIO
-int portx_setup (void)
+int port_setup (void)
 {
-  fprintf (stdout, "Setting up mcp23017\n");
+  fprintf (stdout, "Setting up GPIO\n");
+  pinMode (PIN_BRD_OK, INPUT);
+  pullUpDnControl (PIN_BRD_OK, PUD_DOWN);
+  
+  if (digitalRead (PIN_BRD_OK) != 1)
+  {
+    fprintf (stdout, "Warning:  Board not detected or 3.3v missing?\n");
+    return 1;
+  }
   //Setup the latch input from the SNES
   pinMode (PIN_LIN, INPUT);
   pullUpDnControl (PIN_LIN, PUD_UP);
   wiringPiISR (PIN_LIN, INT_EDGE_RISING, &latch_interrupt);
-  //Setup the port expander
+  
+  fprintf (stdout, "Setting up mcp23017\n");
   mcp23017Setup (PIN_BASE, 0x20);
   clear_all_buttons ();
-   //No way of knowing success yet :(
-  return 1;
+  
+  return 0;
 }
 
 //Writes to the mcp23017 based on a 16bit short
@@ -183,8 +212,8 @@ void latch_interrupt (void)
 int malloc_record_buffer (void)
 {
   //Allocate memory for recorded inputs
-  output_ptr = malloc (RECBUFSIZE);
-  if (output_ptr == NULL)
+  ptr = malloc (RECBUFSIZE);
+  if (ptr == NULL)
   {
     printf("Unable to allocate %i bytes for record buffer\n", RECBUFSIZE);
     return 1;
@@ -195,6 +224,33 @@ int malloc_record_buffer (void)
 }
 
 
+int joystick_setup ()
+{
+  p1.pisnes_num = setupSnesJoystick (PIN_P1DAT, PIN_P1CLK, PIN_P1LAT);
+  if (p1.pisnes_num == -1)
+  {
+    fprintf (stdout, "Error in setupSnesJoystick\n");
+    return 1;
+  }
+  if (detectSnesJoystick (p1.pisnes_num) != 0)
+  {
+    fprintf (stdout, "Didn't detect a SNES joystick in port 1\n");
+    return 1;
+  }
+
+  //joy2 = setupSnesJoystick ( 1, 0, 15);
+
+  if (p1.pisnes_num == -1)
+  {
+    fprintf (stdout, "Unable to setup input\n") ;
+    return 1 ;
+  }
+
+  p1.input = 0x0000;
+  p1.input_old = 0x0000;
+  return 0;
+}
+
 int setup ()
 {
   if (wiringPiSetup () == -1)
@@ -203,48 +259,74 @@ int setup ()
     return 1 ;
   }
 	
-  portx_setup ();
-  //data, clock, latch in wiringPi format
-  joy1 = setupSnesJoystick (2, 7, 0);
-  //joy2 = setupSnesJoystick ( 1, 0, 15);
-
-  if (joy1 == -1)
+  if (port_setup () != 0 || joystick_setup () != 0)
   {
-    fprintf (stdout, "Unable to setup input\n") ;
-    return 1 ;
+    return 1;
   }
 
-  p1_old = 0;
-  signal(SIGINT, signal_handler);
+ signal(SIGINT, signal_handler);
   return 0;
 }
 
 void check_player_inputs ()
 {
-  if ((p1_input && SNES_L != 0))
+  if ((p1.input & SNES_L) && (p1.input & SNES_R))
     fprintf (stdout, "LR PRESSED\n\n\n\n");
 }
 
 void read_player_inputs ()
 {
-    p1_input = readSnesJoystick (joy1) ;
-  //  check_player_inputs();
+    p1.input = readSnesJoystick (p1.pisnes_num) ;
+    check_player_inputs();
+}
+
+int record_start ()
+{
+  //malloc some memory for the output ptr
+  record.ptr = malloc (RECBUFSIZE);
+  if (record.ptr == NULL)
+  {
+    printf("Unable to allocate %i bytes for record buffer\n", RECBUFSIZE);
+    state = STATE_EXITING;
+    return 1;
+  }
+  else
+    printf("%i bytes allocated for record buffer\n", RECBUFSIZE);
+  record.filepos = 0;
+  state = STATE_RECORDING;
+  return 0;
+}
+
+void record_player_inputs ()
+{
+  memcpy (record.ptr + (record.filepos * CHUNK_SIZE), &latch_counter, sizeof(latch_counter));
+  memcpy (record.ptr + sizeof(latch_counter) + (record.filepos * CHUNK_SIZE), &p1.input, sizeof(p1.input));
+  record.filepos++;
 }
 
 void main_loop ()
 {
-  wait_for_first_latch ();
+  //TODO While SNES is on, halt and show message to turn off
+  if (state == STATE_PLAYBACK || state == STATE_RECORDING)
+    wait_for_first_latch ();
+  
+  if (state == STATE_RECORDING)
+    if (record_start () != 0)
+    {
+      fprintf (stderr, "Error setting up record buffer\n");
+      state = STATE_EXITING;
+    }
+
+
   while (state != STATE_EXITING)
   {
-    if (state == STATE_PASSTHROUGH)
+    read_player_inputs();
+    if (p1.input != p1.input_old)
     {
-      read_player_inputs();
-      if (p1_input != p1_old)
-      {
-    	p1_old = p1_input;
-	print_buttons (p1_input, p2_input);
-	set_inputs (PIN_BASE, p1_input);
-      }
+      p1.input_old = p1.input;
+      print_buttons (p1.input, p2.input);
+      set_inputs (PIN_BASE, p1.input);
+      record_player_inputs ();
     }
   }
 }
@@ -257,7 +339,7 @@ int main ()
     fprintf (stdout, "Error setting up\n");
     return 1;
   }
-  state = STATE_PASSTHROUGH;
+  state = STATE_RUNNING;
   main_loop ();
  
   fprintf (stdout, "Exiting...\n");
@@ -283,7 +365,7 @@ int write_mem_into_file (void)
 	printf ("Recorded %lu bytes of input\n", filesize);
 	
 	//Store to output file
-	long result = fwrite (output_ptr, 1, filesize, output_file);
+	long result = fwrite (ptr, 1, filesize, output_file);
 	printf ("Wrote %lu bytes to %s\n", result + sizeof(filemagic), filename);
 	fclose(output_file);
 	return 0;
