@@ -41,84 +41,18 @@ Convert to single mcu rather than 4021's
 Program ASCII Turbo boxes
 */
 
-#include <stdio.h>
-#include <getopt.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <errno.h>
-#include <string.h>
-#include <signal.h>
-#include <sys/time.h>
-
-#include <wiringPi.h>
-#include <mcp23017.h>
-#include "piSnes.h"
-
-#define PIN_LIN 15 //wiring Pi 15 reads the latch from the SNES
-#define PIN_P1CLK 7 //Which GPIO are used for reading in the P1 SNES joystick
-#define PIN_P1LAT 0
-#define PIN_P1DAT 2
-
-#define PIN_BRD_OK 3 //Loopback from pin 1/3.3v to see if board is connected
-#define PIN_SNES_VCC 25
-#define	BLANK	"|      "
-#define PIN_BASE 120
-//Set record buffer to 16MB
-#define RECBUFSIZE	1024 * 1024 * 16 
-//Magic file number
-#define FILEMAGIC	0xBEC16260
-#define CHUNK_SIZE (sizeof(unsigned long int) + sizeof(unsigned short int))
-//Pointers to input/output buffers
-char *input_ptr;
-char *ptr;
+#include "snes.h"
 //Magic number for SNESBot recorded files
 long filemagic = FILEMAGIC;
 //Default filename
 char *filename = "snes.rec";
-
-
 unsigned short int inputs[16] = {
 	SNES_BIT16, SNES_BIT15, SNES_BIT14, SNES_R, SNES_L, SNES_X, SNES_A, SNES_RIGHT, 
 	SNES_LEFT, SNES_DOWN, SNES_UP, SNES_START, SNES_SELECT, SNES_Y, SNES_B};
 
 
-typedef enum {STATE_INIT, STATE_RUNNING, STATE_RECORDING, STATE_PLAYBACK, STATE_EXITING} states_t;
 
-states_t state;
 
-unsigned long int latch_counter = 0;
-void latch_interrupt (void);
-int write_mem_into_file (void);
-int read_file_into_mem (void);
-void playback_read_next ();
-void record_player_inputs ();
-void read_player_inputs ();
-
-struct joy_t {
-  int pisnes_num;
-  unsigned short int input;
-  unsigned short int input_old;
-};
-
-struct joy_t p1;
-struct joy_t p2;
-
-struct record_t {
-  void *ptr;
-  int filesize;
-  long int filepos;
-};
-
-struct playback_t {
-  void *ptr;
-  long int filepos;
-  long int filesize;
-  unsigned long int next_latch;
-  unsigned short int next_input;
-};
-
-struct record_t record;
-struct playback_t playback;
 /*
 static void print_buttons (unsigned short int p1, unsigned short int p2)
 {
@@ -156,7 +90,9 @@ static void print_buttons (unsigned short int p1, unsigned short int p2)
 void wait_for_first_latch (void)
 {
   printf("Waiting for first latch\n");
+  //time_start (); 
   while (digitalRead (PIN_LIN) == 0 && state != (STATE_EXITING));
+  //time_stop ();
   printf("Running\n");
 }
 
@@ -191,7 +127,7 @@ int port_setup (void)
   pinMode (PIN_BRD_OK, INPUT);
   pullUpDnControl (PIN_BRD_OK, PUD_DOWN);
   pinMode (PIN_SNES_VCC, INPUT);
-  pullUpDnControl (PIN_SNES_VCC, PUD_DOWN);
+  pullUpDnControl (PIN_SNES_VCC, PUD_UP);
   
     
   if (digitalRead (PIN_BRD_OK) != 1)
@@ -201,8 +137,8 @@ int port_setup (void)
   }
   //Setup the latch input from the SNES
   pinMode (PIN_LIN, INPUT);
-  pullUpDnControl (PIN_LIN, PUD_UP);
-  wiringPiISR (PIN_LIN, INT_EDGE_RISING, &latch_interrupt);
+  pullUpDnControl (PIN_LIN, PUD_DOWN);
+  wiringPiISR (PIN_LIN, INT_EDGE_FALLING, &latch_interrupt);
   
   fprintf (stdout, "Setting up mcp23017\n");
   mcp23017Setup (PIN_BASE, 0x20);
@@ -226,6 +162,21 @@ static void set_inputs (int pin_base, unsigned short int input)
 	}
 }
 
+static inline void time_start (void)
+{
+  gettimeofday(&start_time, NULL);
+}
+
+static inline void time_stop (void)
+{
+  struct timeval stop_time;
+  long ms;
+  gettimeofday(&stop_time, NULL);
+  ms = (stop_time.tv_sec - start_time.tv_sec) + (stop_time.tv_usec - start_time.tv_usec);
+  printf ("Elapsed time = %li ms\n", ms);
+}
+
+
 void latch_interrupt (void)
 {
   if ((state == STATE_PLAYBACK) && (playback.next_latch == latch_counter))
@@ -245,6 +196,7 @@ void latch_interrupt (void)
     p1.input_old = p1.input;
     set_inputs(PIN_BASE, p1.input);
   }
+  else
 
   latch_counter++;
 }
@@ -332,69 +284,23 @@ int read_options (int argc, char **argv)
   return 0;
 }
 
-//Reads the next set of inputs ready to be pressed
-void playback_read_next ()
+void wait_for_snes_powerup ()
 {
-  memcpy (&playback.next_latch, playback.ptr + (playback.filepos * CHUNK_SIZE), sizeof(latch_counter));
-  memcpy (&p1.input, playback.ptr + sizeof(latch_counter) + (playback.filepos * CHUNK_SIZE), sizeof(p1.input));
-  playback.filepos++;
-  if ((playback.filepos * CHUNK_SIZE) > playback.filesize)
-  {
-    fprintf (stdout, "Playback finished\n");
-    state = STATE_EXITING;
-  }
-  //fprintf (stdout, "%i, %x, %i\n", latch_counter, p1.input, playback.next_latch);
-}
-
-int playback_start ()
-{
-  if (read_file_into_mem () != 0)
-  {
-    fprintf (stderr, "Error reading input file into memory\n");
-    return 1;
-  }
-  fprintf (stdout, "Filesize: %li\n", playback.filesize);
-  //Load up the initial inputs
-  playback_read_next ();
-
-  return 0;
-}
-
-int record_start ()
-{
-  //malloc some memory for the output ptr
-  record.ptr = malloc (RECBUFSIZE);
-  if (record.ptr == NULL)
-  {
-    printf("Unable to allocate %i bytes for record buffer\n", RECBUFSIZE);
-    state = STATE_EXITING;
-    return 1;
-  }
-  else
-    printf("%i bytes allocated for record buffer\n", RECBUFSIZE);
-  record.filepos = 0;
-  state = STATE_RECORDING;
-  return 0;
-}
-
-void record_player_inputs ()
-{
-  //fprintf (stdout, "size %i ptr: %#10x\n", record.filepos * CHUNK_SIZE, record.ptr + (record.filepos * CHUNK_SIZE));
-  memcpy (record.ptr + record.filepos * CHUNK_SIZE, &latch_counter, sizeof(latch_counter));
-  memcpy (record.ptr + sizeof(latch_counter) + (record.filepos * CHUNK_SIZE), &p1.input, sizeof(p1.input));
-  record.filepos++;
-}
-
-void record_save ()
-{
-  if (record.filepos > 0)
-  {
-    write_mem_into_file ();
-  }
+    if (snes_is_on ())
+    {
+      fprintf (stdout, "SNES power detected, please power cycle the SNES\n");
+      while (snes_is_on ());
+      fprintf (stdout, "SNES Powered off\n");
+    }
+    fprintf (stdout, "Waiting for SNES power on\n");
+    while (!snes_is_on ());
+ 
 }
 
 void main_loop ()
 { 
+  clear_all_buttons (); 
+  
   if (state == STATE_RECORDING)
   {
     fprintf (stdout, "RECORDING\n");
@@ -403,14 +309,7 @@ void main_loop ()
       fprintf (stderr, "Error setting up record buffer\n");
       state = STATE_EXITING;
     }
-    if (snes_is_on ())
-    {
-      fprintf (stdout, "SNES power detected, please power cycle the SNES\n");
-      while (snes_is_on ()) delayMicroseconds (100);
-      fprintf (stdout, "SNES Powered off\n");
-    }
-    fprintf (stdout, "Waiting for SNES power on\n");
-    while (!snes_is_on ()) delayMicroseconds (100);
+    //wait_for_snes_powerup ();
   }
   else if (state == STATE_PLAYBACK)
   {
@@ -420,8 +319,8 @@ void main_loop ()
       fprintf (stderr, "Error setting up playback buffer\n");
       state = STATE_EXITING;
     }
+    //wait_for_snes_powerup ();
   }
-  clear_all_buttons (); 
   
   if (state == STATE_PLAYBACK || state == STATE_RECORDING)
     wait_for_first_latch ();
