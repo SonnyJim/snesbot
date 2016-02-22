@@ -35,6 +35,22 @@ Live input was working fine, both from a USB keyboard and a PS1 controller conne
 
 After a bit more playing around I had a bit of a eureka moment, where I found out that I was supplying the 4021's with 3.3V instead of 5V.  Also I hadn't put in a blocking diode to stop current flow back into the SNES.  Once I had fixed both of these problems playback worked a *lot* better.  I'm not quite sure why live input worked and recorded didn't at 3.3V, but I'm certainly glad it's working at 5V!
 
+
+Flash forward 2 years......
+---------------------------
+
+I picked up the project again after getting back into SNES collecting and decided to try another way.  I wasn't really happy with using so much of the Pi's GPIO, so I explored some other options.  The author of the WiringPi library pointed me in the direction of the MCP23017 port expander chip.  The good thing about this chip is that it allows 16bits of input/ouput at 5V and can communicate with the Pi using I2C, which is 3.3v.  This is a very good thing, as it allows me to drive 16bits of data at 5V using only 2 lines from the Pi (SDA/SCL), which will be at 3.3v.  No more level shifter chips, huzzah (well nearly).  I still need to level shift the latch input from the SNES into the Pi, but I can do that very simply with a voltage divider.  It also means that to add another player it means just adding another 3 chips (1 x MCP23017, 2 x 4021's) and can use the same I2C line from the Pi, just set to different addresses.
+
+Reading SNES joysticks
+----------------------
+
+Now that I had some spare GPIOs, I may as well make some use of them!  In the wiringPi library there is support for reading NES joysticks.  This is a good thing, as the NES joystick protocol is identical to the SNES one, just that the SNES protocol uses more bits for the extra buttons.  Another bonus is that all of the SNES joysticks I tried would run quite happily at 3.3v, meaning I could hook them straight into the Pi without needing to level shift them.  Double result!
+
+This means that I can now operate the Pi in 'Passthrough' mode, where I read the SNES joystick inputs into the Pi, then load up the shift registers with that data using the MCP23017 which is then clocked into the SNES.  Because I am intecepting the joystick inputs I can:
+
+* Hide the Pi inside the SNES case
+* Use a ribbon cable to pass the controller data into the Pi and out again into the SNES, no more messy soldering onto the back of the SNES controller input block.
+
 TAS Videos
 ----------
 
@@ -57,6 +73,7 @@ Hardware required:
 ------------------
 A Raspberry Pi + SD card + USB keyboard / joystick
 
+1 x MCP23017 Port Expander
 2 x CD4021B CMOS shift registers
 
 1 x buffer / level convertor for the latch pulse
@@ -70,7 +87,7 @@ A knockoff/broken controller for the SNES connector
 Software needed:
 ----------------
 Raspbian
-WiringPi library by gordonDragon
+WiringPi library by gordonDrogon
 
 Games confirmed to be working:
 ------------------------------
@@ -117,7 +134,6 @@ Why they don't work is a bit of a mystery to me at the moment.  As the code that
 
 Features:
 ---------
-Live input via USB joystick or keyboard attached to the Pi
 
 Record joystick inputs and playback
 
@@ -162,11 +178,10 @@ I have included a script for snes9x-rr, but unfortunately it seems that the emul
 
 TODO:
 ----
+Live input via USB joystick or keyboard attached to the Pi
 Netplay (depending on the RNG method used by each game)
 
 Support other TAS video files other than lsnes
-
-Right now the code is heavily based around using a USB PS1 controller, would be nice to support other controllers
 
 Add support for SNES mouse via a USB mouse attached to the Pi.
 
