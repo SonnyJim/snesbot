@@ -1,5 +1,9 @@
+--local bit = require("bit")
 --[[
-polldump.lua by Ilari
+polldump.lua
+
+MAKE SURE YOU USE A COMPATIBLE VERSION OF LSNES, ie one that supports on_latch
+
 Converts lsnes movie files to SNESBot compatible files
 Usage:
 In the File menu, load ROM in lsnes
@@ -20,6 +24,7 @@ sudo ./snesbot -l -L -p -j -f filename.dump
 Turn on SNES
 ]]--
 
+print ("SNESBot Lua Latch Dumper loaded")
 dumpfile = nil;
 
 start_dump = function(filename)
@@ -31,9 +36,13 @@ start_dump = function(filename)
 	dumped = false;
 	current = false;
 	iframes = 0;
+	p1_input = 0;
+	p1_old = 0;
+	print ("Starting dum-dum-dum-dum dump")
 end
 
 end_dump = function()
+	print ("Writing output file")
 	dumpfile:close();
 	dumpfile = nil;
 end
@@ -41,20 +50,43 @@ end
 current = false;
 iframes = 0;
 
-on_snoop = function(x, y, z, w)
-	if z == 0 then
-		if current and dumpfile then
-			byte1 = math.floor(current / 256);
-			byte2 = current % 256;
-			dumpfile:write(string.char(byte1, byte2));
-			iframes = iframes + 1;
+function toBits(num, bits)
+    -- returns a table of bits
+    local t={} -- will contain the bits
+    for b=bits,1,-1 do
+        rest=math.fmod(num,2)
+        t[b]=rest
+        num=(num-rest)/2
+    end
+    if num==0 then return t else return {'Not enough bits to represent this number'}end
+end
+
+on_latch = function()
+	if dumpfile then
+		tframe = movie.get_frame(movie.find_frame(movie.currentframe()));
+		--We start off with all buttons off
+		p1_input = 0x0000
+		for i = 0, 15, 1 do
+			--Get the bit
+			out = 0
+			--Durr, I like my bits in the wrong order
+			if tframe:get_button(1, 0, 15 - i) then
+				out = bit.lshift (1, i)
+			else
+				out = bit.lshift (0, i)
+			end
+			p1_input = bit.bor (p1_input, out)
 		end
-		current = (w ~= 0) and 1 or 0;
-		dumped = true;
-	else
-		if w ~= 0 then
-			current = bit.any(current, bit.value(z));
+		if (p1_input ~= p1_old) then
+			print (iframes)
+			print (p1_input)
+			bits=toBits(p1_input, 16)
+			print (table.concat(bits))
+			p1_old = p1_input
+			dumpfile:write(string.pack("L", iframes))
+			dumpfile:write(string.pack("H<", p1_input))
 		end
+		iframes = iframes + 1;
 	end
 end
 
@@ -63,3 +95,4 @@ on_paint = function()
 		gui.text(0, 0, iframes, 0x00FF00, 0);
 	end
 end
+
