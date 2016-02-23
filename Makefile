@@ -28,7 +28,7 @@ INCLUDE	= -I/usr/local/include
 CFLAGS	= $(DEBUG) -Wall $(INCLUDE) -Winline -pipe -std=c99 -O3
 LDFLAGS	= -L/usr/local/lib
 LDLIBS	= -lwiringPi -lwiringPiDev
-OBJS = snes.o record.o joystick.o
+OBJS = snes.o record.o joystick.o cfg.o
 all: snesbot snestest snes
 
 snes: $(OBJS)

@@ -19,7 +19,26 @@
 #define PIN_BRD_OK 3 //Loopback from pin 1/3.3v to see if board is connected
 #define PIN_SNES_VCC 25
 #define	BLANK	"|      "
+
+//Set the pin base for the MCP23017
 #define PIN_BASE 120
+
+#define	SNES_B		0x8000
+#define	SNES_Y		0x4000
+#define	SNES_SELECT	0x2000
+#define	SNES_START	0x1000
+#define	SNES_UP		0x0800
+#define	SNES_DOWN	0x0400
+#define	SNES_LEFT	0x0200
+#define	SNES_RIGHT	0x0100
+#define	SNES_A		0x0080
+#define	SNES_X		0x0040
+#define	SNES_L		0x0020
+#define	SNES_R		0x0010
+#define	SNES_BIT14	0x0008
+#define	SNES_BIT15	0x0004
+#define	SNES_BIT16	0x0002
+
 //Set record buffer to 16MB
 #define RECBUFSIZE	1024 * 1024 * 16 
 //Magic file number
@@ -44,7 +63,6 @@ unsigned long int latch_counter;
 void latch_interrupt (void);
 int write_mem_into_file (void);
 int read_file_into_mem (void);
-
 void clear_all_buttons (void);
 extern int record_start (void);
 extern int playback_start (void);
@@ -52,9 +70,17 @@ extern void playback_read_next ();
 extern void record_save (void);
 void record_player_inputs ();
 void read_player_inputs ();
-
+void signal_handler (int signal);
 //static inline void time_start (void);
 //static inline void time_stop (void);
+//cfg.c
+
+int setup ();
+int port_setup (void);
+int joystick_setup (void);
+void check_player_inputs (void);
+void read_player_inputs (void);
+int read_options (int argc, char **argv);
 
 struct joy_t {
   int pisnes_num;
@@ -64,6 +90,7 @@ struct joy_t {
 
 struct joy_t p1;
 struct joy_t p2;
+void print_buttons (unsigned short int p1, unsigned short int p2);
 
 struct record_t {
   void *ptr;

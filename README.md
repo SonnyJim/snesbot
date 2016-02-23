@@ -14,7 +14,7 @@ How it works:
 -------------
 The SNES controller protocol is fairly simple, every 16.67ms (or 60Hz for NTSC, 50Hz for PAL consoles) it sends out a latch pulse to each controller, which contain 2 x 4021 shift registers.  These shift registers then clock out the 16 bits of data to the console.  Although the latch pulse is fairly slow, the clock is fairly quick, with 16us between clock pulses.
 
-So far so good, but what about randomness in games?  Well, the good thing is that the SNES lacks a source of entropy (hardware random number generator or even a realtime clock), so most games use an absurdly simple principle.  Count the number of latches before a controller input is pressed and use that to see a PRNG.  Also bear in mind that the SNES doesn't start sending out the latch pulses until the CPU is working correctly, this means that as long as we send out the same button presses on exactly the same latch on each poweron, then our PRNG will act *exactly* the same, with the same enemy patterns, powerups, items etc.
+So far so good, but what about randomness in games?  Well, the good thing is that the SNES lacks a source of entropy (hardware random number generator or even a realtime clock), so most games use an absurdly simple principle.  Count the number of latches before a controller input is pressed and use that to seed a PRNG.  Also bear in mind that the SNES doesn't start sending out the latch pulses until the CPU is working correctly, this means that as long as we send out the same button presses on exactly the same latch on each poweron, then our PRNG will act *exactly* the same, with the same enemy patterns, powerups, items etc.
 
 My different approaches:
 -----------------------
@@ -180,6 +180,7 @@ TODO:
 ----
 Live input via USB joystick or keyboard attached to the Pi
 Netplay (depending on the RNG method used by each game)
+Support for more than 2 controllers
 
 Support other TAS video files other than lsnes
 

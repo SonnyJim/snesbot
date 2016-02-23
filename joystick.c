@@ -1,9 +1,11 @@
 /*
  * piSnes.c:
  *	Driver for the SNES Joystick controller on the Raspberry Pi
+ *	Heavily based on code from WiringPi
  *	Copyright (c) 2012 Gordon Henderson,
+ *	Copyright (c) 2016 Ewan Meadows
  ***********************************************************************
- * This file is part of wiringPi:
+ * This file was part of wiringPi:
  *	https://projects.drogon.net/raspberry-pi/wiringpi/
  *
  *    wiringPi is free software: you can redistribute it and/or modify
@@ -23,11 +25,12 @@
  */
 
 #include <wiringPi.h>
-
-#include "piSnes.h"
+#include "snes.h"
+#include "joystick.h"
 
 #define	MAX_SNES_JOYSTICKS	8
 
+//Set this to as quick as possible, we don't want to hang around waiting to read in the joysticks
 #define	PULSE_TIME	5
 
 // Data to store the pins for each controller
@@ -77,6 +80,7 @@ int detectSnesJoystick (int joystick)
   digitalWrite (pins->lPin, HIGH) ; delayMicroseconds (PULSE_TIME) ;
   return 0;
 };
+
 /*
  * setupNesJoystick:
  *	Create a new SNES joystick interface, program the pins, etc.
@@ -136,3 +140,43 @@ unsigned short int readSnesJoystick (int joystick)
 
   return value ^ 0xFFFF;
 }
+
+int joystick_setup (void)
+{
+  p1.pisnes_num = setupSnesJoystick (PIN_P1DAT, PIN_P1CLK, PIN_P1LAT);
+  if (p1.pisnes_num == -1)
+  {
+    fprintf (stdout, "Error in setupSnesJoystick\n");
+    return 1;
+  }
+  
+  if (detectSnesJoystick (p1.pisnes_num) != 0)
+  {
+    fprintf (stdout, "Didn't detect a SNES joystick in port 1\n");
+    return 1;
+  }
+
+  if (p1.pisnes_num == -1)
+  {
+    fprintf (stdout, "Unable to setup input\n") ;
+    return 1 ;
+  }
+
+  p1.input = 0x0000;
+  p1.input_old = 0x0000;
+  return 0;
+}
+
+void check_player_inputs (void)
+{
+  if ((p1.input & SNES_L) && (p1.input & SNES_R))
+    fprintf (stdout, "LR PRESSED\n\n\n\n");
+}
+
+void read_player_inputs (void)
+{
+    p1.input = readSnesJoystick (p1.pisnes_num) ;
+    //check_player_inputs();
+}
+
+

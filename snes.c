@@ -53,8 +53,7 @@ unsigned short int inputs[16] = {
 
 
 
-/*
-static void print_buttons (unsigned short int p1, unsigned short int p2)
+void print_buttons (unsigned short int p1, unsigned short int p2)
 {
 	printf("Player 1: %#010x %lu\n", p1, latch_counter);
 	if ((p1 & SNES_UP)     != 0) printf ("|  UP  " ) ; else printf (BLANK) ;
@@ -85,7 +84,6 @@ static void print_buttons (unsigned short int p1, unsigned short int p2)
 	if ((p2 & SNES_R)      != 0) printf ("|  R   " ) ; else printf (BLANK) ;
 	printf ("|\n") ;
 }
-*/
 
 void wait_for_first_latch (void)
 {
@@ -111,40 +109,6 @@ void clear_all_buttons (void)
 int snes_is_on (void)
 {
   return digitalRead (PIN_SNES_VCC);
-}
-
-void signal_handler (int signal)
-{
-	printf ("\n\nSIGINT detected\n");
-        state = STATE_EXITING;
-}
-
-//TODO Probe the i2c line to make sure the mcp23017 is there
-//Setup the mcp23017 and Pi GPIO
-int port_setup (void)
-{
-  fprintf (stdout, "Setting up GPIO\n");
-  pinMode (PIN_BRD_OK, INPUT);
-  pullUpDnControl (PIN_BRD_OK, PUD_DOWN);
-  pinMode (PIN_SNES_VCC, INPUT);
-  pullUpDnControl (PIN_SNES_VCC, PUD_UP);
-  
-    
-  if (digitalRead (PIN_BRD_OK) != 1)
-  {
-    fprintf (stdout, "Warning:  Board not detected or 3.3v missing?\n");
-    return 1;
-  }
-  //Setup the latch input from the SNES
-  pinMode (PIN_LIN, INPUT);
-  pullUpDnControl (PIN_LIN, PUD_DOWN);
-  wiringPiISR (PIN_LIN, INT_EDGE_FALLING, &latch_interrupt);
-  
-  fprintf (stdout, "Setting up mcp23017\n");
-  mcp23017Setup (PIN_BASE, 0x20);
-  clear_all_buttons ();
-  
-  return 0;
 }
 
 //Writes to the mcp23017 based on a 16bit short
@@ -177,7 +141,7 @@ static inline void time_stop (void)
 }
 
 
-void latch_interrupt (void)
+inline void latch_interrupt (void)
 {
   if ((state == STATE_PLAYBACK) && (playback.next_latch == latch_counter))
   {
@@ -201,90 +165,7 @@ void latch_interrupt (void)
   latch_counter++;
 }
 
-int joystick_setup ()
-{
-  p1.pisnes_num = setupSnesJoystick (PIN_P1DAT, PIN_P1CLK, PIN_P1LAT);
-  if (p1.pisnes_num == -1)
-  {
-    fprintf (stdout, "Error in setupSnesJoystick\n");
-    return 1;
-  }
-  
-  if (detectSnesJoystick (p1.pisnes_num) != 0)
-  {
-    fprintf (stdout, "Didn't detect a SNES joystick in port 1\n");
-    return 1;
-  }
-
-  if (p1.pisnes_num == -1)
-  {
-    fprintf (stdout, "Unable to setup input\n") ;
-    return 1 ;
-  }
-
-  p1.input = 0x0000;
-  p1.input_old = 0x0000;
-  return 0;
-}
-
-int setup ()
-{
-  if (wiringPiSetup () == -1)
-  {
-    fprintf (stdout, "oops: %s\n", strerror (errno)) ;
-    return 1 ;
-  }
-	
-  if (port_setup () != 0 || joystick_setup () != 0)
-  {
-    return 1;
-  }
-
- signal(SIGINT, signal_handler);
-  return 0;
-}
-
-void check_player_inputs ()
-{
-  if ((p1.input & SNES_L) && (p1.input & SNES_R))
-    fprintf (stdout, "LR PRESSED\n\n\n\n");
-}
-
-void read_player_inputs ()
-{
-    p1.input = readSnesJoystick (p1.pisnes_num) ;
-    //check_player_inputs();
-}
-
-int read_options (int argc, char **argv)
-{
-  int c;
-  while ((c = getopt (argc, argv, "rp")) != -1)
-  {
-      switch (c)
-      {
-        case 'r':
-          if (state == STATE_PLAYBACK)
-          {
-            fprintf (stderr, "Error, both playback and record specified\n");
-            return 1;
-          }
-          state = STATE_RECORDING;
-          break;
-        case 'p':
-          if (state == STATE_RECORDING)
-          {
-            fprintf (stderr, "Error, both playback and record specified\n");
-            return 1;
-          }
-          state = STATE_PLAYBACK;
-          break;
-      }
-  }
-  return 0;
-}
-
-void wait_for_snes_powerup ()
+void wait_for_snes_powerup (void)
 {
     if (snes_is_on ())
     {
@@ -297,7 +178,7 @@ void wait_for_snes_powerup ()
  
 }
 
-void main_loop ()
+void main_loop (void)
 { 
   clear_all_buttons (); 
   
@@ -328,12 +209,18 @@ void main_loop ()
   while (state != STATE_EXITING)
   {
     if (state != STATE_PLAYBACK)
+    {
       read_player_inputs();
+     // if (p1.input != p1.input_old)
+    //    print_buttons (p1.input, p2.input);
+    }
+    /*
     if (!snes_is_on())
     {
       fprintf (stdout, "SNES poweroff detected\n");
       state = STATE_EXITING;
     }
+    */
   }
   //Always attempt a save before exiting
   record_save ();
@@ -342,6 +229,7 @@ void main_loop ()
 int main (int argc, char **argv)
 {
   state = STATE_INIT;
+  //piHiPri (45);
   if (setup () != 0)
   {
     fprintf (stdout, "Error setting up\n");
@@ -361,87 +249,8 @@ int main (int argc, char **argv)
   }
 
   main_loop ();
- 
+  clear_all_buttons (); 
   fprintf (stdout, "Exiting...\n");
   return 0 ;
 }
 
-int write_mem_into_file (void)
-{
-	//Open output file
-	FILE *output_file = fopen (filename, "wb");
-	
-	if (output_file == NULL)
-	{
-		printf("Problem opening %s for writing\n", filename);
-		return 1;
-	}
-	
-	//Write magic number to file header
-//	fwrite (&filemagic, 1, sizeof(filemagic), output_file);
-
-	//Calculate filesize
-	record.filesize = CHUNK_SIZE * record.filepos;
-	printf ("Recorded %i bytes of input\n", record.filesize);
-	
-	//Store to output file
-	long result = fwrite (record.ptr, 1, record.filesize, output_file);
-	printf ("Wrote %lu bytes to %s\n", result, filename);
-	fclose(output_file);
-	return 0;
-}
-
-int read_file_into_mem (void)
-{
-	//Open the file
-	FILE *input_file = fopen (filename, "rb");
-	
-	if (input_file == NULL)
-	{
-		printf ("Could not open %s for reading\n", filename);
-		return 1;
-	}
-        /*        
-        long filemagic_check;
-        fread (&filemagic_check, 1, sizeof(filemagic), input_file);
-        if (filemagic_check != filemagic)
-        {
-          printf ("Incompatible file type!\n");
-          return 1;
-        }
-        else 
-          printf ("SNESBot filetype detected\n");
-        */
-	//Seek to the end
-	fseek (input_file, 0, SEEK_END);
-	//Find out how many bytes it is
-	playback.filesize = ftell(input_file);
-	
-
-	//Rewind it back to the start ready for reading into memory
-	rewind (input_file);	
-	
-        /*
-	//Strip off file magic number
-        filesize = filesize - sizeof(filemagic);
-        //Seek past the magic number
-        fseek (input_file, sizeof(filemagic), 0);
-        */
-
-	//Allocate some memory
-	playback.ptr = malloc (playback.filesize);
-	if (playback.ptr == NULL)
-	{
-		printf("malloc of %lu bytes failed\n", playback.filesize);
-		return 1;
-	}
-	else
-		printf("malloc of %lu bytes succeeded\n", playback.filesize);
-	
-	//Read the input file into allocated memory
-	fread (playback.ptr, 1, playback.filesize, input_file);
-        playback.filepos = 0;	
-	//Close the input file, no longer needed
-	fclose (input_file);
-	return 0;
-}

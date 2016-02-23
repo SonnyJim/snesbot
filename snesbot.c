@@ -111,6 +111,7 @@ void signal_handler (int signal)
 	running = 0;
 }
 
+
 void wait_for_first_latch (void)
 {
 	if (wait_for_latch && !debug_playback)
