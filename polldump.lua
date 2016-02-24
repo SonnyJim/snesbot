@@ -38,11 +38,11 @@ start_dump = function(filename)
 	iframes = 0;
 	p1_input = 0;
 	p1_old = 0;
-	print ("Starting dum-dum-dum-dum dump")
+	print ("Starting dum-dum-dum-dum dump" .. filename)
 end
 
 end_dump = function()
-	print ("Writing output file")
+	print ("Writing output file:" .. filename)
 	dumpfile:close();
 	dumpfile = nil;
 end

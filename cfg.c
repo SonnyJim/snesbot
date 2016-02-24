@@ -8,7 +8,7 @@ int port_setup (void)
   pinMode (PIN_BRD_OK, INPUT);
   pullUpDnControl (PIN_BRD_OK, PUD_DOWN);
   pinMode (PIN_SNES_VCC, INPUT);
-  pullUpDnControl (PIN_SNES_VCC, PUD_UP);
+  pullUpDnControl (PIN_SNES_VCC, PUD_DOWN);
   
     
   if (digitalRead (PIN_BRD_OK) != 1)

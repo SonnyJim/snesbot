@@ -143,7 +143,7 @@ static inline void time_stop (void)
 
 inline void latch_interrupt (void)
 {
-  if ((state == STATE_PLAYBACK) && (playback.next_latch == latch_counter))
+  if ((state == STATE_PLAYBACK) && (playback.next_latch == latch_counter + 1))
   {
     //We are due to load up the next set of inputs
     set_inputs(PIN_BASE, p1.input);
@@ -160,8 +160,6 @@ inline void latch_interrupt (void)
     p1.input_old = p1.input;
     set_inputs(PIN_BASE, p1.input);
   }
-  else
-
   latch_counter++;
 }
 
@@ -211,8 +209,9 @@ void main_loop (void)
     if (state != STATE_PLAYBACK)
     {
       read_player_inputs();
-     // if (p1.input != p1.input_old)
-    //    print_buttons (p1.input, p2.input);
+
+//      if (p1.input != p1.input_old)
+  //      print_buttons (p1.input, p2.input);
     }
     /*
     if (!snes_is_on())

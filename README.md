@@ -71,7 +71,7 @@ I really need to get myself a logic analsyer as so far I've been doing this 'bli
 
 Hardware required:
 ------------------
-A Raspberry Pi + SD card + USB keyboard / joystick
+A Raspberry Pi + SD card
 
 1 x MCP23017 Port Expander
 2 x CD4021B CMOS shift registers
