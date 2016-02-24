@@ -10,6 +10,7 @@ void playback_read_next ()
   {
     fprintf (stdout, "Playback finished\n");
     clear_all_buttons ();
+    read_player_inputs();
     state = STATE_RUNNING;
   }
   //fprintf (stdout, "%i, %x, %i\n", latch_counter, p1.input, playback.next_latch);

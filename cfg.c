@@ -18,8 +18,8 @@ int port_setup (void)
   }
   //Setup the latch input from the SNES
   pinMode (PIN_LIN, INPUT);
-  pullUpDnControl (PIN_LIN, PUD_UP);
-  wiringPiISR (PIN_LIN, INT_EDGE_RISING, &latch_interrupt);
+  pullUpDnControl (PIN_LIN, PUD_DOWN);
+  wiringPiISR (PIN_LIN, INT_EDGE_FALLING, &latch_interrupt);
   
   fprintf (stdout, "Setting up mcp23017\n");
   mcp23017Setup (PIN_BASE, 0x20);

@@ -1,30 +1,30 @@
 /*
  * snes.c:
- *	Test program for an old SNES controller connected to the Pi.
+ *	The beginnings of a SNES Bot
  *
- * Copyright (c) 2012-2013 Gordon Henderson. <projects@drogon.net>
+ * Copyright (c) 2016 Ewan Meadows
  ***********************************************************************
- * This file is part of wiringPi:
- *	https://projects.drogon.net/raspberry-pi/wiringpi/
  *
- *    wiringPi is free software: you can redistribute it and/or modify
+ *    This is free software: you can redistribute it and/or modify
  *    it under the terms of the GNU Lesser General Public License as published by
  *    the Free Software Foundation, either version 3 of the License, or
  *    (at your option) any later version.
  *
- *    wiringPi is distributed in the hope that it will be useful,
+ *    This is distributed in the hope that it will be useful,
  *    but WITHOUT ANY WARRANTY; without even the implied warranty of
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU Lesser General Public License for more details.
  *
  *    You should have received a copy of the GNU Lesser General Public License
- *    along with wiringPi.  If not, see <http://www.gnu.org/licenses/>.
+ *    along with this.  If not, see <http://www.gnu.org/licenses/>.
  ***********************************************************************
  */
 
 /*TODO: 
 Check to see if a joystick is there by reading in the high bits - DONE
-  
+Add in a header, with what the last frame is
+Print the estimated playback time at file start
+
 Hook into the following lines from the SNES that we have available
 Reset (MITM SuperCIC reset line?  Might not work with SA-1)
 50/60 Hertz from the PPUs
@@ -35,6 +35,8 @@ Hardware:
 Hook the pi output into the SNES audio output
 Get the Pi to drive the power LED
 Battery circuit/powerdown script for Pi
+SMD LEDs to show button pushes
+
 
 Pie in the sky:
 Convert to single mcu rather than 4021's
@@ -96,12 +98,15 @@ void wait_for_first_latch (void)
 
 void clear_all_buttons (void)
 { 
+  p1.input = 0;
+  p1.input_old = 0;
+  
   int i;
   for (i = 0 ; i < 16 ; ++i)
   {
       //Set all pins to output and default high
       pinMode (PIN_BASE + i, OUTPUT) ;
-      pullUpDnControl (PIN_BASE + i, PUD_UP);
+      pullUpDnControl (PIN_BASE + i, PUD_DOWN);
       digitalWrite (PIN_BASE + i, HIGH) ;
   }
 }
@@ -143,7 +148,8 @@ static inline void time_stop (void)
 
 inline void latch_interrupt (void)
 {
-  if ((state == STATE_PLAYBACK) && (playback.next_latch == latch_counter + 1))
+  delay(1);
+  if ((state == STATE_PLAYBACK) && (playback.next_latch == latch_counter))
   {
     //We are due to load up the next set of inputs
     set_inputs(PIN_BASE, p1.input);
