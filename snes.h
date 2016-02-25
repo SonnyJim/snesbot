@@ -83,6 +83,8 @@ void check_player_inputs (void);
 void read_player_inputs (void);
 int read_options (int argc, char **argv);
 
+int is_a_pi (void);
+
 struct conf_t {
   int snesgpio_num; //How many SNES controllers we have plugged in
   char* outfile;
