@@ -214,48 +214,40 @@ int setupUSBJoystick (void)
     
 }
 
+unsigned short int process_ev_buttons (struct js_event)
+{
+
+}
+
 //Coverts the USB joystick ev data in a short int
 unsigned short int process_ev (struct js_event ev)
 {
+    unsigned short int out = 0;
 	// Axis/Type 2 == dpad
-	if (ev.type == 2)
+	if (ev.type == JS_EVENT_AXIS)
 	{
 		switch (ev.number)
 		{
 			// X axis
-			case 0:
+			case p1.mapping.x_axis:
 				if (ev.value > 0)
 				{
-					digitalWrite (Right_Pin, LOW);
-					digitalWrite (Left_Pin, HIGH);
+                    out |= SNES_RIGHT;
 				}
 				else if (ev.value < 0)
 				{
-					digitalWrite (Left_Pin, LOW);
-					digitalWrite (Right_Pin, HIGH);
-				}
-				else
-				{
-					digitalWrite (Right_Pin, HIGH);
-					digitalWrite (Left_Pin, HIGH);
+                    out |= SNES_LEFT;
 				}
 				break;
 			//Y Axis
-			case 1:
+			case p1.mapping.y_axis:
 				if (ev.value > 0)
 				{
-					digitalWrite (Down_Pin, LOW);
-					digitalWrite (Up_Pin, HIGH);
+                    out |= SNES_UP;
 				}
 				else if (ev.value < 0)
 				{
-					digitalWrite (Up_Pin, LOW);
-					digitalWrite (Down_Pin, HIGH);
-				}
-				else
-				{
-					digitalWrite (Up_Pin, HIGH);
-					digitalWrite (Down_Pin, HIGH);
+                    out |= SNES_DOWN;
 				}
 				break;
 			default:
@@ -263,7 +255,7 @@ unsigned short int process_ev (struct js_event ev)
 			}
 	}
 	// Axis/Type 1 == Buttons
-	if (ev.type == 1)
+	if (ev.type == JS_EVENT_BUTTON)
 	{
 		// 1 = ON/GPIO LOW
 		if (ev.value == 1)
@@ -276,6 +268,7 @@ unsigned short int process_ev (struct js_event ev)
 			digitalWrite (psx_mapping[ev.number], HIGH);
 		}
 	}
+    return out;
 }
 
 

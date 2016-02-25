@@ -86,6 +86,9 @@ int is_a_pi (void);
 
 typedef enum {JS_NONE, JS_GPIO1, JS_GPIO2, JS_USB1, JS_USB2} joytype_t;
 
+#include <linux/input.h>
+#include <linux/joystick.h>
+
 
 //Use this to store button mapping config for USB-> SNES
 struct joymap_t {
