@@ -11,14 +11,14 @@ void playback_read_next ()
     fprintf (stdout, "Playback finished\n");
     clear_all_buttons ();
     read_player_inputs();
-    state = STATE_RUNNING;
+    botcfg.state = STATE_RUNNING;
   }
   //fprintf (stdout, "%i, %x, %i\n", latch_counter, p1.input, playback.next_latch);
 }
 
 void dump_latches (void)
 {
-  while (state != STATE_RUNNING)
+  while (botcfg.state != STATE_RUNNING)
   {
     fprintf (stdout, "Next latch: %lu\n", playback.next_latch);
     print_buttons (p1.input, p1.input);
@@ -46,13 +46,13 @@ int record_start ()
   if (record.ptr == NULL)
   {
     printf("Unable to allocate %i bytes for record buffer\n", RECBUFSIZE);
-    state = STATE_EXITING;
+    botcfg.state = STATE_EXITING;
     return 1;
   }
   else
     printf("%i bytes allocated for record buffer\n", RECBUFSIZE);
   record.filepos = 0;
-  state = STATE_RECORDING;
+  botcfg.state = STATE_RECORDING;
   return 0;
 }
 
@@ -75,11 +75,11 @@ void record_save (void)
 int write_mem_into_file (void)
 {
 	//Open output file
-	FILE *output_file = fopen (filename, "wb");
+	FILE *output_file = fopen (botcfg.outfile, "wb");
 	
 	if (output_file == NULL)
 	{
-		printf("Problem opening %s for writing\n", filename);
+		printf("Problem opening %s for writing\n", botcfg.outfile);
 		return 1;
 	}
 	
@@ -92,7 +92,7 @@ int write_mem_into_file (void)
 	
 	//Store to output file
 	long result = fwrite (record.ptr, 1, record.filesize, output_file);
-	printf ("Wrote %lu bytes to %s\n", result, filename);
+	printf ("Wrote %lu bytes to %s\n", result, botcfg.outfile);
 	fclose(output_file);
 	return 0;
 }
@@ -100,11 +100,11 @@ int write_mem_into_file (void)
 int read_file_into_mem (void)
 {
 	//Open the file
-	FILE *input_file = fopen (filename, "rb");
+	FILE *input_file = fopen (botcfg.infile, "rb");
 	
 	if (input_file == NULL)
 	{
-		printf ("Could not open %s for reading\n", filename);
+		printf ("Could not open %s for reading\n", botcfg.infile);
 		return 1;
 	}
         /*        

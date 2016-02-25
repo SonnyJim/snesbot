@@ -47,7 +47,6 @@ Program ASCII Turbo boxes
 //Magic number for SNESBot recorded files
 long filemagic = FILEMAGIC;
 //Default filename
-char *filename = "snes.rec";
 unsigned short int inputs[16] = {
 	SNES_BIT16, SNES_BIT15, SNES_BIT14, SNES_R, SNES_L, SNES_X, SNES_A, SNES_RIGHT, 
 	SNES_LEFT, SNES_DOWN, SNES_UP, SNES_START, SNES_SELECT, SNES_Y, SNES_B};
@@ -91,7 +90,7 @@ void wait_for_first_latch (void)
 {
   printf("Waiting for first latch\n");
   //time_start (); 
-  while (digitalRead (PIN_LIN) == 0 && state != (STATE_EXITING));
+  while (digitalRead (PIN_LIN) == 0 && botcfg.state != (STATE_EXITING));
   //time_stop ();
   printf("Running\n");
 }
@@ -131,12 +130,12 @@ static void set_inputs (int pin_base, unsigned short int input)
 	}
 }
 
-static inline void time_start (void)
+void time_start (void)
 {
   gettimeofday(&start_time, NULL);
 }
 
-static inline void time_stop (void)
+void time_stop (void)
 {
   struct timeval stop_time;
   long ms;
@@ -148,20 +147,20 @@ static inline void time_stop (void)
 
 inline void latch_interrupt (void)
 {
-  delay(1);
-  if ((state == STATE_PLAYBACK) && (playback.next_latch == latch_counter))
+  delay(5);
+  if ((botcfg.state == STATE_PLAYBACK) && (playback.next_latch == latch_counter))
   {
     //We are due to load up the next set of inputs
     set_inputs(PIN_BASE, p1.input);
     playback_read_next ();
   } 
-  else if (state == STATE_RECORDING && p1.input != p1.input_old)
+  else if (botcfg.state == STATE_RECORDING && p1.input != p1.input_old)
   {
     p1.input_old = p1.input;
     record_player_inputs ();
     set_inputs(PIN_BASE, p1.input);
   }
-  else if (state == STATE_RUNNING && p1.input != p1.input_old)
+  else if (botcfg.state == STATE_RUNNING && p1.input != p1.input_old)
   {
     p1.input_old = p1.input;
     set_inputs(PIN_BASE, p1.input);
@@ -186,33 +185,33 @@ void main_loop (void)
 { 
   clear_all_buttons (); 
   
-  if (state == STATE_RECORDING)
+  if (botcfg.state == STATE_RECORDING)
   {
     fprintf (stdout, "RECORDING\n");
     if (record_start () != 0)
     {
       fprintf (stderr, "Error setting up record buffer\n");
-      state = STATE_EXITING;
+      botcfg.state = STATE_EXITING;
     }
     //wait_for_snes_powerup ();
   }
-  else if (state == STATE_PLAYBACK)
+  else if (botcfg.state == STATE_PLAYBACK)
   {
     fprintf (stdout, "PLAYBACK\n");
     if (playback_start () != 0)
     {
       fprintf (stderr, "Error setting up playback buffer\n");
-      state = STATE_EXITING;
+      botcfg.state = STATE_EXITING;
     }
     //wait_for_snes_powerup ();
   }
   
-  if (state == STATE_PLAYBACK || state == STATE_RECORDING)
+  if (botcfg.state == STATE_PLAYBACK || botcfg.state == STATE_RECORDING)
     wait_for_first_latch ();
   
-  while (state != STATE_EXITING)
+  while (botcfg.state != STATE_EXITING)
   {
-    if (state != STATE_PLAYBACK)
+    if (botcfg.state != STATE_PLAYBACK)
     {
       read_player_inputs();
 
@@ -223,7 +222,7 @@ void main_loop (void)
     if (!snes_is_on())
     {
       fprintf (stdout, "SNES poweroff detected\n");
-      state = STATE_EXITING;
+      botcfg.state = STATE_EXITING;
     }
     */
   }
@@ -233,7 +232,7 @@ void main_loop (void)
 
 int main (int argc, char **argv)
 {
-  state = STATE_INIT;
+  botcfg.state = STATE_INIT;
   //piHiPri (45);
   if (setup () != 0)
   {
@@ -247,10 +246,10 @@ int main (int argc, char **argv)
     return 1;
   }
   
-  if (state == STATE_INIT)
+  if (botcfg.state == STATE_INIT)
   {
     //User didn't chose either record or replay, falling back to passthrough
-    state = STATE_RUNNING;
+    botcfg.state = STATE_RUNNING;
   }
 
   main_loop ();

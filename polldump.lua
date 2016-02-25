@@ -27,7 +27,6 @@ Turn on SNES
 
 print ("SNESBot Lua Latch Dumper loaded")
 dumpfile = nil;
-
 start_dump = function(filename)
 	file, err = io.open(filename ..".rec", "wb");
 	if not file then
@@ -37,6 +36,7 @@ start_dump = function(filename)
 	latch_counter = 0;
 	p1_input = 0; --Set both the current and old inputs to off
 	p1_old = 0;
+
 	print (string.format("Starting dum-dum-dum-dum dump to %s.rec", filename))
 end
 

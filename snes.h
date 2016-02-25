@@ -50,7 +50,7 @@ char *ptr;
 //Magic number for SNESBot recorded files
 extern long filemagic;
 //Default filename
-extern char *filename;
+char *filename;
 
 
 extern unsigned short int inputs[16];
@@ -71,8 +71,9 @@ extern void record_save (void);
 void record_player_inputs ();
 void read_player_inputs ();
 void signal_handler (int signal);
-//static inline void time_start (void);
-//static inline void time_stop (void);
+void wait_for_snes_powerup (void);
+void time_start (void);
+void time_stop (void);
 //cfg.c
 
 int setup ();
@@ -82,6 +83,13 @@ void check_player_inputs (void);
 void read_player_inputs (void);
 int read_options (int argc, char **argv);
 
+struct conf_t {
+  int snesgpio_num; //How many SNES controllers we have plugged in
+  char* outfile;
+  char* infile;
+  states_t state;
+};
+
 struct joy_t {
   int pisnes_num;
   unsigned short int input;
@@ -90,6 +98,8 @@ struct joy_t {
 
 struct joy_t p1;
 struct joy_t p2;
+struct conf_t botcfg;
+
 void print_buttons (unsigned short int p1, unsigned short int p2);
 
 struct record_t {

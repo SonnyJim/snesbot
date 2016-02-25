@@ -1,5 +1,15 @@
 #include "snes.h"
 
+void print_usage (void)
+{
+	printf("Usage:\n");
+	printf("sudo snes [options] -f [filename]\n\n");
+	printf("Options:\n");
+	printf(" -r       Record\n");
+	printf(" -p       Playback\n");
+}
+
+
 //TODO Probe the i2c line to make sure the mcp23017 is there
 //Setup the mcp23017 and Pi GPIO
 int port_setup (void)
@@ -48,25 +58,30 @@ int setup ()
 int read_options (int argc, char **argv)
 {
   int c;
-  while ((c = getopt (argc, argv, "rp")) != -1)
+  filename = "snes.rec";
+  while ((c = getopt (argc, argv, "rpf:")) != -1)
   {
       switch (c)
       {
         case 'r':
-          if (state == STATE_PLAYBACK)
+          if (botcfg.state == STATE_PLAYBACK)
           {
             fprintf (stderr, "Error, both playback and record specified\n");
             return 1;
           }
-          state = STATE_RECORDING;
+          botcfg.state = STATE_RECORDING;
           break;
         case 'p':
-          if (state == STATE_RECORDING)
+          if (botcfg.state == STATE_RECORDING)
           {
             fprintf (stderr, "Error, both playback and record specified\n");
             return 1;
           }
-          state = STATE_PLAYBACK;
+          botcfg.state = STATE_PLAYBACK;
+          break;
+        case 'f':
+          botcfg.outfile = optarg;
+          botcfg.infile = optarg;
           break;
       }
   }
@@ -76,5 +91,5 @@ int read_options (int argc, char **argv)
 void signal_handler (int signal)
 {
 	printf ("\nSIGINT detected, exiting\n");
-        state = STATE_EXITING;
+        botcfg.state = STATE_EXITING;
 }
