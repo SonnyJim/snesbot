@@ -180,3 +180,102 @@ void read_player_inputs (void)
 }
 
 
+unsigned short int readUSBJoystick (void)
+{
+    size_t js_read;
+
+    js_read = fread (&p1.ev, 1, sizeof(struct js_event), p1.fp);
+    if (js_read < sizeof(struct js_event))
+    {
+        fprintf (stderr, "Didn't read back a whole js_event?\n");
+    }
+}
+
+FILE* open_joystick_dev (char* device)
+{
+    FILE* js_dev;
+
+	js_dev = fopen (device, "r");
+
+	if (js_dev == NULL)
+		return -1;
+	else
+		return js_dev;
+}
+
+int setupUSBJoystick (void)
+{
+    p1.fp = open_joystick_dev ("/dev/input/js0");
+
+    if (p1.fp == -1)
+    {
+        fprintf (stderr, "Error reading USB input device\n");
+    }
+    
+}
+
+//Coverts the USB joystick ev data in a short int
+unsigned short int process_ev (struct js_event ev)
+{
+	// Axis/Type 2 == dpad
+	if (ev.type == 2)
+	{
+		switch (ev.number)
+		{
+			// X axis
+			case 0:
+				if (ev.value > 0)
+				{
+					digitalWrite (Right_Pin, LOW);
+					digitalWrite (Left_Pin, HIGH);
+				}
+				else if (ev.value < 0)
+				{
+					digitalWrite (Left_Pin, LOW);
+					digitalWrite (Right_Pin, HIGH);
+				}
+				else
+				{
+					digitalWrite (Right_Pin, HIGH);
+					digitalWrite (Left_Pin, HIGH);
+				}
+				break;
+			//Y Axis
+			case 1:
+				if (ev.value > 0)
+				{
+					digitalWrite (Down_Pin, LOW);
+					digitalWrite (Up_Pin, HIGH);
+				}
+				else if (ev.value < 0)
+				{
+					digitalWrite (Up_Pin, LOW);
+					digitalWrite (Down_Pin, HIGH);
+				}
+				else
+				{
+					digitalWrite (Up_Pin, HIGH);
+					digitalWrite (Down_Pin, HIGH);
+				}
+				break;
+			default:
+				break;
+			}
+	}
+	// Axis/Type 1 == Buttons
+	if (ev.type == 1)
+	{
+		// 1 = ON/GPIO LOW
+		if (ev.value == 1)
+		{
+			digitalWrite (psx_mapping[ev.number], LOW);
+		}
+		// 0 = OFF/GPIO HIGH
+		else if (ev.value == 0)
+		{
+			digitalWrite (psx_mapping[ev.number], HIGH);
+		}
+	}
+}
+
+
