@@ -90,15 +90,15 @@ void wait_for_first_latch (void)
 {
   printf("Waiting for first latch\n");
   //time_start (); 
-  while (digitalRead (PIN_LIN) == 0 && botcfg.state != (STATE_EXITING));
+  while (digitalRead (PIN_LIN) == 0 && botcfg.state != (STATE_EXITING))delay(1);
   //time_stop ();
   printf("Running\n");
 }
 
 void clear_all_buttons (void)
 { 
-  p1.input = 0;
-  p1.input_old = 0;
+  //p1.input = 0;
+  //p1.input_old = 0;
   
   int i;
   for (i = 0 ; i < 16 ; ++i)
@@ -140,15 +140,15 @@ void time_stop (void)
   struct timeval stop_time;
   long ms;
   gettimeofday(&stop_time, NULL);
-  ms = (stop_time.tv_sec - start_time.tv_sec) + (stop_time.tv_usec - start_time.tv_usec);
+  ms = (stop_time.tv_usec - start_time.tv_usec);
   printf ("Elapsed time = %li ms\n", ms);
 }
 
 
 inline void latch_interrupt (void)
 {
-  delay(5);
-  if ((botcfg.state == STATE_PLAYBACK) && (playback.next_latch == latch_counter))
+  delay(1);
+  if ((botcfg.state == STATE_PLAYBACK) && (playback.next_latch == latch_counter - 2)) 
   {
     //We are due to load up the next set of inputs
     set_inputs(PIN_BASE, p1.input);
@@ -183,6 +183,7 @@ void wait_for_snes_powerup (void)
 
 void main_loop (void)
 { 
+  interrupt_enable();
   clear_all_buttons (); 
   
   if (botcfg.state == STATE_RECORDING)
@@ -193,7 +194,7 @@ void main_loop (void)
       fprintf (stderr, "Error setting up record buffer\n");
       botcfg.state = STATE_EXITING;
     }
-    //wait_for_snes_powerup ();
+  //  wait_for_snes_powerup ();
   }
   else if (botcfg.state == STATE_PLAYBACK)
   {
@@ -203,7 +204,7 @@ void main_loop (void)
       fprintf (stderr, "Error setting up playback buffer\n");
       botcfg.state = STATE_EXITING;
     }
-    //wait_for_snes_powerup ();
+   // wait_for_snes_powerup ();
   }
   
   if (botcfg.state == STATE_PLAYBACK || botcfg.state == STATE_RECORDING)
@@ -214,9 +215,8 @@ void main_loop (void)
     if (botcfg.state != STATE_PLAYBACK)
     {
       read_player_inputs();
-
-//      if (p1.input != p1.input_old)
-  //      print_buttons (p1.input, p2.input);
+  //    if (p1.input != p1.input_old)
+    //    print_buttons (p1.input, p2.input);
     }
     /*
     if (!snes_is_on())

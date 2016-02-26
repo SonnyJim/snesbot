@@ -10,6 +10,11 @@ void print_usage (void)
 }
 
 
+int interrupt_enable (void)
+{
+  return wiringPiISR (PIN_LIN, INT_EDGE_FALLING, &latch_interrupt);
+}
+
 //TODO Probe the i2c line to make sure the mcp23017 is there
 //Setup the mcp23017 and Pi GPIO
 int port_setup (void)
@@ -29,7 +34,6 @@ int port_setup (void)
   //Setup the latch input from the SNES
   pinMode (PIN_LIN, INPUT);
   pullUpDnControl (PIN_LIN, PUD_DOWN);
-  wiringPiISR (PIN_LIN, INT_EDGE_FALLING, &latch_interrupt);
   
   fprintf (stdout, "Setting up mcp23017\n");
   mcp23017Setup (PIN_BASE, 0x20);
