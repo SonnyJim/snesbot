@@ -56,7 +56,6 @@ char *filename;
 extern unsigned short int inputs[16];
 
 typedef enum {STATE_INIT, STATE_RUNNING, STATE_RECORDING, STATE_PLAYBACK, STATE_EXITING} states_t;
-
 states_t state;
 
 unsigned long int latch_counter;
@@ -84,6 +83,28 @@ void read_player_inputs (void);
 int read_options (int argc, char **argv);
 int interrupt_enable (void);
 
+int is_a_pi (void);
+
+typedef enum {JS_NONE, JS_GPIO1, JS_GPIO2, JS_USB1, JS_USB2} joytype_t;
+
+#include <linux/input.h>
+#include <linux/joystick.h>
+
+
+//Use this to store button mapping config for USB-> SNES
+struct joymap_t {
+    int x_axis;
+    int y_axis;
+    int b;
+    int y;
+    int select;
+    int start;
+    int a;
+    int x;
+    int l;
+    int r;
+};
+
 struct conf_t {
   int snesgpio_num; //How many SNES controllers we have plugged in
   char* outfile;
@@ -92,13 +113,20 @@ struct conf_t {
 };
 
 struct joy_t {
-  int pisnes_num;
+  joytype_t joytype;
+  int pisnes_num; //GPIO port
   unsigned short int input;
   unsigned short int input_old;
+  FILE* fp; //fp, ev for USB joysticks
+  struct js_event ev;
+  struct joymap_t mapping; //Storage for button mapping
+  button_t buttons[12]; // Button configuration
 };
 
 struct joy_t p1;
 struct joy_t p2;
+struct usbjoy_t p1usb;
+
 struct conf_t botcfg;
 
 void print_buttons (unsigned short int p1, unsigned short int p2);

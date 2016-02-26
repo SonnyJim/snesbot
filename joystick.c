@@ -180,3 +180,95 @@ void read_player_inputs (void)
 }
 
 
+unsigned short int readUSBJoystick (void)
+{
+    size_t js_read;
+
+    js_read = fread (&p1.ev, 1, sizeof(struct js_event), p1.fp);
+    if (js_read < sizeof(struct js_event))
+    {
+        fprintf (stderr, "Didn't read back a whole js_event?\n");
+    }
+}
+
+FILE* open_joystick_dev (char* device)
+{
+    FILE* js_dev;
+
+	js_dev = fopen (device, "r");
+
+	if (js_dev == NULL)
+		return -1;
+	else
+		return js_dev;
+}
+
+int setupUSBJoystick (void)
+{
+    p1.fp = open_joystick_dev ("/dev/input/js0");
+
+    if (p1.fp == -1)
+    {
+        fprintf (stderr, "Error reading USB input device\n");
+    }
+    
+}
+
+unsigned short int process_ev_buttons (struct js_event)
+{
+
+}
+
+//Coverts the USB joystick ev data in a short int
+unsigned short int process_ev (struct js_event ev)
+{
+    unsigned short int out = 0;
+	// Axis/Type 2 == dpad
+	if (ev.type == JS_EVENT_AXIS)
+	{
+		switch (ev.number)
+		{
+			// X axis
+			case p1.mapping.x_axis:
+				if (ev.value > 0)
+				{
+                    out |= SNES_RIGHT;
+				}
+				else if (ev.value < 0)
+				{
+                    out |= SNES_LEFT;
+				}
+				break;
+			//Y Axis
+			case p1.mapping.y_axis:
+				if (ev.value > 0)
+				{
+                    out |= SNES_UP;
+				}
+				else if (ev.value < 0)
+				{
+                    out |= SNES_DOWN;
+				}
+				break;
+			default:
+				break;
+			}
+	}
+	// Axis/Type 1 == Buttons
+	if (ev.type == JS_EVENT_BUTTON)
+	{
+		// 1 = ON/GPIO LOW
+		if (ev.value == 1)
+		{
+			digitalWrite (psx_mapping[ev.number], LOW);
+		}
+		// 0 = OFF/GPIO HIGH
+		else if (ev.value == 0)
+		{
+			digitalWrite (psx_mapping[ev.number], HIGH);
+		}
+	}
+    return out;
+}
+
+
