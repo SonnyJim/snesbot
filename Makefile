@@ -31,6 +31,10 @@ LDLIBS	= -lwiringPi -lwiringPiDev
 OBJS = snes.o record.o joystick.o cfg.o isapi.o
 all: snesbot snestest snes
 
+jstest: joystick.o jstest.o
+	@echo [link]
+	@$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS)
+
 snes: $(OBJS)
 	@echo [link]
 	@$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS)

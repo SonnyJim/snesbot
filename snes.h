@@ -118,14 +118,13 @@ struct joy_t {
   unsigned short int input;
   unsigned short int input_old;
   FILE* fp; //fp, ev for USB joysticks
+  int fd;
   struct js_event ev;
-  struct joymap_t mapping; //Storage for button mapping
-  button_t buttons[12]; // Button configuration
+  struct joymap_t mapping;
 };
 
 struct joy_t p1;
 struct joy_t p2;
-struct usbjoy_t p1usb;
 
 struct conf_t botcfg;
 
@@ -136,6 +135,9 @@ struct record_t {
   int filesize;
   long int filepos;
 };
+
+int setupUSBJoystick (void);
+int readUSBJoystick (void);
 
 struct playback_t {
   void *ptr;
