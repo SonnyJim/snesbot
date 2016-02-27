@@ -39,10 +39,13 @@ struct snesPinsStruct
   unsigned int cPin, dPin, lPin ;
 } ;
 
+void process_ev (struct js_event ev, struct player_t* player);
+
 static struct snesPinsStruct snesPins [MAX_SNES_JOYSTICKS] ;
 
 static int joysticks = 0 ;
 
+void configure_player_buttons (struct player_t* player);
 
 /*
  * detectSnesJoystick:
@@ -194,7 +197,9 @@ int joystick_setup (void)
   int ret = 0;
   p1.num = 1;
   p2.num = 2;
+  p1.joytype = JOY_USB;
   ret = setup_player (&p1);
+  //configure_player_buttons (&p1);
   return ret;
 }
 
@@ -220,6 +225,71 @@ static void read_input (struct player_t* player)
   }
 }
 
+static int wait_for_js_axis (struct player_t* player)
+{
+  struct js_event ev;
+  int waiting = 1;
+  fprintf (stdout, "Move axis\n");
+  while (waiting)
+  {
+    fread (&ev, sizeof(ev), 1, player->fp);
+    if ((ev.type == JS_EVENT_AXIS) 
+        && (ev.value != 0))
+    {
+  fprintf (stdout, "1T%d N%d V%d\n", ev.type, ev.number, ev.value);
+        waiting = 0;
+    }
+  }
+  return ev.number; 
+}
+
+
+static int wait_for_js_button (struct player_t* player)
+{
+  struct js_event ev;
+  int waiting = 1;
+  fprintf (stdout, "Press button\n");
+  while (waiting)
+  {
+    fread (&ev, sizeof(ev), 1, player->fp);
+    if ((ev.type == JS_EVENT_BUTTON) 
+        && (ev.value > 0))
+    {
+  fprintf (stdout, "1T%d N%d V%d\n", ev.type, ev.number, ev.value);
+        waiting = 0;
+    }
+  }
+  return ev.number; 
+}
+
+void configure_player_buttons (struct player_t* player)
+{
+  fprintf (stdout, "Configuring buttons for player %i\n", player->num);
+  fprintf (stdout, "X axis\n");
+  player->mapping.x_axis = wait_for_js_axis (player);
+  fprintf (stdout, "Y axis\n");
+  player->mapping.y_axis = wait_for_js_axis (player);
+  
+  fprintf (stdout, "B\n");
+  player->mapping.b = wait_for_js_button (player);
+  fprintf (stdout, "A\n");
+  player->mapping.a = wait_for_js_button (player);
+  fprintf (stdout, "Y\n");
+  player->mapping.y = wait_for_js_button (player);
+  fprintf (stdout, "X\n");
+  player->mapping.x = wait_for_js_button (player);
+  fprintf (stdout, "L\n");
+  player->mapping.l = wait_for_js_button (player);
+  fprintf (stdout, "R\n");
+  player->mapping.r = wait_for_js_button (player);
+  fprintf (stdout, "Select\n");
+  player->mapping.select = wait_for_js_button (player);
+  fprintf (stdout, "Start\n");
+  player->mapping.start = wait_for_js_button (player);
+  fprintf (stdout,"Finished configuring buttons for player %i\n", player->num);
+
+}
+
 void read_player_inputs (void)
 {
     read_input (&p1);
@@ -230,7 +300,7 @@ void read_player_inputs (void)
 //Coverts the USB joystick ev data in a short int
 void process_ev (struct js_event ev, struct player_t* player)
 {
-  fprintf (stdout, "T%d N%d V%d\n", ev.type, ev.number, ev.value);
+ // fprintf (stdout, "T%d N%d V%d\n", ev.type, ev.number, ev.value);
   //if (ev.type != JS_EVENT_BUTTON || ev.type != JS_EVENT_AXIS)
   //  return;
   if (ev.type == JS_EVENT_AXIS)
@@ -319,18 +389,15 @@ void process_ev (struct js_event ev, struct player_t* player)
         player->input &= ~SNES_R;
     }
   }
-  fprintf (stdout, "%#10x out\n", player->input);
+  //fprintf (stdout, "%#10x out\n", player->input);
 }
 
 int readUSBJoystick (struct player_t* player)
 {
   struct js_event ev;
-  int count = 1;
-  //while (count != 0 )
-  //{
-    count = fread (&ev, sizeof(ev), 1, player->fp);
-    process_ev (ev, player);
-  //}
+  
+  fread (&ev, sizeof(ev), 1, player->fp);
+  process_ev (ev, player);
     /* EAGAIN is returned when the queue is empty */
   if (errno != EAGAIN && errno != 0)
   {
@@ -354,38 +421,3 @@ int setupUSBJoystick (struct player_t* player, char* device)
   return 0;
 }
 
-/*
-int setupUSBJoystick (struct player_t player, char* device)
-{
-    char num_buttons_char;
-    char num_axis_char;
-    int num_buttons;
-    int num_axis;
-
-    char name[128];
-    
-    player.fd = open (device, O_RDONLY | O_NONBLOCK);
-    if (!player.fd)
-    {
-        fprintf (stderr, "Error reading USB input device\n");
-        return 1;
-    }
-    
-    ioctl (player.fd, JSIOCGBUTTONS, &num_buttons_char);
-    num_buttons = num_buttons_char;
-
-    ioctl (player.fd, JSIOCGAXES, &num_axis_char);
-    num_axis = num_axis_char;
-    
-    if (ioctl(player.fd, JSIOCGNAME(sizeof(name)), name) < 0)
-      strncpy(name, "Unknown", sizeof(name));
-    printf("Joystick name: %s, %i buttons, %i axis\n", name, num_buttons, num_axis);
-    
-    if (num_buttons < 8)
-    {
-      fprintf (stderr, "Error, joystick doesn't have enough buttons to be a SNES joystick!\n");
-      return 1;
-    }
-    return 0;
-}
-*/

@@ -50,7 +50,7 @@ int setup ()
     return 1 ;
   }
 	
-  if (port_setup () != 0 || joystick_setup () != 0)
+  if (port_setup () != 0)
   {
     return 1;
   }
