@@ -197,7 +197,7 @@ int joystick_setup (void)
   int ret = 0;
   p1.num = 1;
   p2.num = 2;
-  p1.joytype = JOY_USB;
+  p1.joytype = JOY_GPIO;
   ret = setup_player (&p1);
   //configure_player_buttons (&p1);
   return ret;

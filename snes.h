@@ -154,3 +154,7 @@ struct playback_t {
 struct timeval start_time, stop_time;
 struct record_t record;
 struct playback_t playback;
+
+
+int remove_pid (void);
+int check_pid (void);

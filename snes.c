@@ -24,6 +24,8 @@
 Check to see if a joystick is there by reading in the high bits - DONE
 Add in a header, with what the last frame is
 Print the estimated playback time at file start
+Store movie comments in the file 
+Don't allow more than one instance 
 
 Hook into the following lines from the SNES that we have available
 Reset (MITM SuperCIC reset line?  Might not work with SA-1)
@@ -147,7 +149,7 @@ void time_stop (void)
 
 inline void latch_interrupt (void)
 {
-  delay(2);
+  delay(3);
   if ((botcfg.state == STATE_PLAYBACK) && (playback.next_latch == latch_counter)) 
   {
     //We are due to load up the next set of inputs
@@ -233,10 +235,16 @@ void main_loop (void)
 int main (int argc, char **argv)
 {
   botcfg.state = STATE_INIT;
+  if (check_pid ())
+  {
+    fprintf (stderr, "Are we already running?\n");
+    return 1;
+  }
+
   //piHiPri (45);
   if (setup () != 0)
   {
-    fprintf (stdout, "Error setting up\n");
+    fprintf (stderr, "Error setting up\n");
     return 1;
   }
   
@@ -261,6 +269,7 @@ int main (int argc, char **argv)
   main_loop ();
   clear_all_buttons (); 
   fprintf (stdout, "Exiting...\n");
+  remove_pid ();
   return 0 ;
 }
 
