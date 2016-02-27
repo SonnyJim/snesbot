@@ -47,4 +47,4 @@ snestest: snestest.o
 	@echo [link]
 	@$(CC) -o $@ snestest.o $(LDFLAGS) $(LDLIBS)
 clean:
-	rm *.o snesbot snestest snes
+	rm -rf *.o snesbot snestest snes jstest

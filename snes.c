@@ -147,8 +147,8 @@ void time_stop (void)
 
 inline void latch_interrupt (void)
 {
-  delay(1);
-  if ((botcfg.state == STATE_PLAYBACK) && (playback.next_latch == latch_counter - 2)) 
+  delay(2);
+  if ((botcfg.state == STATE_PLAYBACK) && (playback.next_latch == latch_counter)) 
   {
     //We are due to load up the next set of inputs
     set_inputs(PIN_BASE, p1.input);
@@ -250,6 +250,12 @@ int main (int argc, char **argv)
   {
     //User didn't chose either record or replay, falling back to passthrough
     botcfg.state = STATE_RUNNING;
+  }
+  
+  if (joystick_setup () != 0)
+  {
+    fprintf (stderr, "Error setting up joysticks\n");
+    return 1;
   }
 
   main_loop ();

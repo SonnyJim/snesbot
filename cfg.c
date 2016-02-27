@@ -59,10 +59,26 @@ int setup ()
   return 0;
 }
 
+void set_joystick_mapping (void)
+{
+  p1.joytype = JOY_USB;
+  p1.mapping.x_axis = 0;
+  p1.mapping.y_axis = 1;
+  p1.mapping.b = 2;
+  p1.mapping.y = 3;
+  p1.mapping.select = 8;
+  p1.mapping.start = 9;
+  p1.mapping.a = 1;
+  p1.mapping.x = 0;
+  p1.mapping.l = 4;
+  p1.mapping.r = 5;
+}
+
 int read_options (int argc, char **argv)
 {
   int c;
   filename = "snes.rec";
+  set_joystick_mapping ();
   while ((c = getopt (argc, argv, "rpf:")) != -1)
   {
       switch (c)
@@ -89,6 +105,7 @@ int read_options (int argc, char **argv)
           break;
       }
   }
+
   return 0;
 }
 

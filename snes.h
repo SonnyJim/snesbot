@@ -9,15 +9,19 @@
 
 #include <wiringPi.h>
 #include <mcp23017.h>
-#include "piSnes.h"
+//#include "piSnes.h"
 
 #define PIN_LIN 15 //wiring Pi 15 reads the latch from the SNES
 #define PIN_P1CLK 7 //Which GPIO are used for reading in the P1 SNES joystick
 #define PIN_P1LAT 0
 #define PIN_P1DAT 2
-
+#define PIN_P2CLK 4 //Which GPIO are used for reading in the P1 SNES joystick
+#define PIN_P2LAT 5
+#define PIN_P2DAT 12
 #define PIN_BRD_OK 3 //Loopback from pin 1/3.3v to see if board is connected
 #define PIN_SNES_VCC 25
+
+
 #define	BLANK	"|      "
 
 //Set the pin base for the MCP23017
@@ -85,7 +89,7 @@ int interrupt_enable (void);
 
 int is_a_pi (void);
 
-typedef enum {JS_NONE, JS_GPIO1, JS_GPIO2, JS_USB1, JS_USB2} joytype_t;
+typedef enum {JOY_NONE, JOY_GPIO, JOY_USB} joytype_t;
 
 #include <linux/input.h>
 #include <linux/joystick.h>
@@ -112,19 +116,18 @@ struct conf_t {
   states_t state;
 };
 
-struct joy_t {
+struct player_t {
+  int num; //Which player we are
   joytype_t joytype;
-  int pisnes_num; //GPIO port
+  int joygpio; //GPIO port, 0 = p1, 1 = p2
   unsigned short int input;
   unsigned short int input_old;
-  FILE* fp; //fp, ev for USB joysticks
-  int fd;
-  struct js_event ev;
+  FILE* fp; //fd for /dev/input/jsX
   struct joymap_t mapping;
 };
 
-struct joy_t p1;
-struct joy_t p2;
+struct player_t p1; 
+struct player_t p2;
 
 struct conf_t botcfg;
 
@@ -136,8 +139,9 @@ struct record_t {
   long int filepos;
 };
 
-int setupUSBJoystick (void);
-int readUSBJoystick (void);
+int joystick_setup (void);
+int setupUSBJoystick (struct player_t* player, char* device);
+int readUSBJoystick (struct player_t* player);
 
 struct playback_t {
   void *ptr;
