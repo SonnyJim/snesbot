@@ -33,10 +33,18 @@ start_dump = function(filename)
 		error("Can't open output file: " .. err);
 	end
 	dumpfile = file;
+
+	file, err = io.open(filename ..".sub", "wb");
+	if not file then
+		error("Can't open output file: " .. err);
+	end
+	sub_file = file;
+
 	latch_counter = 0;
 	p1_input = 0; --Set both the current and old inputs to off
 	p1_old = 0;
-
+	sub_index = 0;
+	sub_frame, sub_length = subtitle.byindex (sub_index) --Get the first subtitle frame
 	print (string.format("Starting dum-dum-dum-dum dump to %s.rec", filename))
 end
 
@@ -44,6 +52,8 @@ end_dump = function()
 	print ("Writing output file")
 	dumpfile:close();
 	dumpfile = nil;
+	sub_file:close();
+	sub_file = nil;
 end
 
 function toBits(num, bits)
@@ -57,9 +67,30 @@ function toBits(num, bits)
     if num==0 then return t else return {'Not enough bits to represent this number'}end
 end
 
+on_frame = function()
+	if dumpfile then
+		if movie.currentframe() == sub_frame then
+			sub_file:write(string.pack("L", latch_counter))
+		end
+
+		if movie.currentframe() == sub_frame + sub_length then
+			subs = subtitle.get(sub_frame, sub_length);
+			sub_length = string.len(subs);
+
+			sub_file:write(string.pack("L", latch_counter));
+			sub_file:write(string.pack("L", sub_length));
+			sub_file:write(subs);
+
+			sub_index = sub_index + 1;
+			sub_frame, sub_length = subtitle.byindex (sub_index) --Get the next subtitle frame
+		end	
+	end
+end
+
 on_latch = function()
 	if dumpfile then
 		tframe = movie.get_frame(movie.find_frame(movie.currentframe()));
+		
 		--We start off with all buttons off
 		p1_input = 0x0000
 		for i = 0, 15, 1 do

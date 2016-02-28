@@ -72,6 +72,7 @@ void set_joystick_mapping (void)
   p1.mapping.x = 0;
   p1.mapping.l = 4;
   p1.mapping.r = 5;
+  p1.mapping.macro = 6;
 }
 
 int read_options (int argc, char **argv)
@@ -79,6 +80,9 @@ int read_options (int argc, char **argv)
   int c;
   filename = "snes.rec";
   set_joystick_mapping ();
+  //read_macro_into_mem ("./hadoken.rec", &macro1);
+  read_sub_file_into_mem ("./subs.sub");
+
   while ((c = getopt (argc, argv, "rpf:")) != -1)
   {
       switch (c)
@@ -112,5 +116,6 @@ int read_options (int argc, char **argv)
 void signal_handler (int signal)
 {
 	printf ("\nSIGINT detected, exiting\n");
+        clear_all_buttons ();
         botcfg.state = STATE_EXITING;
 }

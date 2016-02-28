@@ -149,8 +149,21 @@ void time_stop (void)
 
 inline void latch_interrupt (void)
 {
-  delay(3);
-  if ((botcfg.state == STATE_PLAYBACK) && (playback.next_latch == latch_counter)) 
+  if (subs.running && subs.start_latch == latch_counter - 1)
+  {
+    fprintf (stdout, "Subs: %s\n", subs.text);
+    sub_read_next ();
+  }
+
+  delay(2);
+  //fprintf (stdout, "%lu|", latch_counter);
+  if ((botcfg.state == STATE_MACRO) && (macro1.next_latch == latch_counter - 1))
+  {
+    set_inputs (PIN_BASE, p1.input);
+    pb_read_next (&macro1);
+
+  }
+  else if ((botcfg.state == STATE_PLAYBACK) && (playback.next_latch == latch_counter - 1)) 
   {
     //We are due to load up the next set of inputs
     set_inputs(PIN_BASE, p1.input);
@@ -185,7 +198,6 @@ void wait_for_snes_powerup (void)
 
 void main_loop (void)
 { 
-  interrupt_enable();
   clear_all_buttons (); 
   
   if (botcfg.state == STATE_RECORDING)
@@ -209,12 +221,13 @@ void main_loop (void)
    // wait_for_snes_powerup ();
   }
   
+  interrupt_enable();
   if (botcfg.state == STATE_PLAYBACK || botcfg.state == STATE_RECORDING)
     wait_for_first_latch ();
   
   while (botcfg.state != STATE_EXITING)
   {
-    if (botcfg.state != STATE_PLAYBACK)
+    if (botcfg.state != STATE_PLAYBACK && botcfg.state != STATE_MACRO)
     {
       read_player_inputs();
   //    if (p1.input != p1.input_old)

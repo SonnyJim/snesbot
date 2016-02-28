@@ -39,7 +39,7 @@ int check_pid (void)
         //Check to see if the old process is still running
         if (pid != oldpid && kill (oldpid, 0) == 0)
         {
-            fprintf (stderr, "camgrab is already running as PID %d\n", oldpid);
+            fprintf (stderr, "Already running as PID %d\n", oldpid);
             fclose(fd);
             return 1;
         }

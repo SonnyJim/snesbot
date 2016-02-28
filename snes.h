@@ -9,6 +9,9 @@
 
 #include <wiringPi.h>
 #include <mcp23017.h>
+
+#include "subs.h"
+
 //#include "piSnes.h"
 
 #define PIN_LIN 15 //wiring Pi 15 reads the latch from the SNES
@@ -59,7 +62,7 @@ char *filename;
 
 extern unsigned short int inputs[16];
 
-typedef enum {STATE_INIT, STATE_RUNNING, STATE_RECORDING, STATE_PLAYBACK, STATE_EXITING} states_t;
+typedef enum {STATE_INIT, STATE_RUNNING, STATE_MACRO, STATE_RECORDING, STATE_PLAYBACK, STATE_EXITING} states_t;
 states_t state;
 
 unsigned long int latch_counter;
@@ -71,6 +74,7 @@ extern int record_start (void);
 extern int playback_start (void);
 extern void playback_read_next ();
 extern void record_save (void);
+
 void record_player_inputs ();
 void read_player_inputs ();
 void signal_handler (int signal);
@@ -107,6 +111,7 @@ struct joymap_t {
     int x;
     int l;
     int r;
+    int macro; //Button for macro shifting
 };
 
 struct conf_t {
@@ -118,6 +123,7 @@ struct conf_t {
 
 struct player_t {
   int num; //Which player we are
+  int macro; //Which macro we are due to play
   joytype_t joytype;
   int joygpio; //GPIO port, 0 = p1, 1 = p2
   unsigned short int input;
@@ -149,12 +155,17 @@ struct playback_t {
   long int filesize;
   unsigned long int next_latch;
   unsigned short int next_input;
+  unsigned long int start_latch;
 };
 
 struct timeval start_time, stop_time;
 struct record_t record;
 struct playback_t playback;
+struct playback_t macro1;
 
 
+void pb_read_next (struct playback_t* pb);
+int read_macro_into_mem (char* filename, struct playback_t* pb);
+void macro_start (struct playback_t* macro);
 int remove_pid (void);
 int check_pid (void);

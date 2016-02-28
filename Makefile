@@ -22,14 +22,15 @@
 #################################################################################
 
 
-#DEBUG	= -g -O0
+DEBUG	= -g -O0
 CC	= gcc
 INCLUDE	= -I/usr/local/include
-CFLAGS	= $(DEBUG) -Wall $(INCLUDE) -Winline -pipe -std=c99 -O3
+#OPT 	= -O3
+CFLAGS	= $(DEBUG) -Wall $(INCLUDE) -Winline -pipe -std=c99 $(OPT)
 LDFLAGS	= -L/usr/local/lib
 LDLIBS	= -lwiringPi -lwiringPiDev
-OBJS = snes.o record.o joystick.o cfg.o isapi.o
-all: snesbot snestest snes
+OBJS = snes.o record.o joystick.o cfg.o isapi.o pidfile.o subs.o
+all: snes
 
 jstest: joystick.o jstest.o
 	@echo [link]
