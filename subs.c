@@ -33,7 +33,10 @@ void sub_read_next (void)
 
 int ends_with(const char* name, const char* extension, size_t length)
 {
+  if (name == NULL)
+    return 0;
   const char* ldot = strrchr(name, '.');
+  
   if (ldot != NULL)
   {
     if (length == 0)
@@ -54,7 +57,7 @@ int read_sub_file_into_mem (char* filename)
     strcat (sub_filename, ".sub");
   }
   else
-    strcpy (sub_filename, filename);
+    return 1;
 
   FILE *input_file = fopen (sub_filename, "rb");
 
