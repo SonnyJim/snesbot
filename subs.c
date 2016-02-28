@@ -31,13 +31,36 @@ void sub_read_next (void)
   }
 }
 
+int ends_with(const char* name, const char* extension, size_t length)
+{
+  const char* ldot = strrchr(name, '.');
+  if (ldot != NULL)
+  {
+    if (length == 0)
+      length = strlen(extension);
+    return strncmp(ldot + 1, extension, length) == 0;
+  }
+  return 0;
+}
 
 int read_sub_file_into_mem (char* filename)
 {
-  FILE *input_file = fopen (filename, "rb");
+  char sub_filename[TEXT_BUFF_SIZE];
+ 
+  //Look for an accompying subtitle file
+  if (ends_with (filename, "rec", 3))
+  {
+    strncpy (sub_filename, filename, strlen(filename) - 4);
+    strcat (sub_filename, ".sub");
+  }
+  else
+    strcpy (sub_filename, filename);
+
+  FILE *input_file = fopen (sub_filename, "rb");
+
   if (input_file == NULL)
   {
-    fprintf (stderr, "Couldn't open %s, %s\n", filename, strerror(errno));
+    fprintf (stderr, "Couldn't open %s, %s\n", sub_filename, strerror(errno));
     return 1;
   }
   
@@ -54,7 +77,7 @@ int read_sub_file_into_mem (char* filename)
     return 1;
   }
   else
-    fprintf(stdout, "malloc of %i bytes succeeded for %s\n", subs.filesize, filename);
+    fprintf(stdout, "malloc of %i bytes succeeded for %s\n", subs.filesize, sub_filename);
   //Read the input file into allocated memory
   size_t count;
   count = fread (subs.ptr, 1, subs.filesize, input_file);

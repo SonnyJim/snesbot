@@ -81,7 +81,6 @@ int read_options (int argc, char **argv)
   filename = "snes.rec";
   set_joystick_mapping ();
   //read_macro_into_mem ("./hadoken.rec", &macro1);
-  read_sub_file_into_mem ("./subs.sub");
 
   while ((c = getopt (argc, argv, "rpf:")) != -1)
   {
@@ -110,6 +109,7 @@ int read_options (int argc, char **argv)
       }
   }
 
+  read_sub_file_into_mem (botcfg.infile);
   return 0;
 }
 
