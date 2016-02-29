@@ -1,3 +1,26 @@
+/*
+ * subs.c:
+ *	Reads the subtitle files dumped from lsnes
+ *
+ * Copyright (c) 2016 Ewan Meadows
+ ***********************************************************************
+ *
+ *    This is free software: you can redistribute it and/or modify
+ *    it under the terms of the GNU Lesser General Public License as published by
+ *    the Free Software Foundation, either version 3 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU Lesser General Public License for more details.
+ *
+ *    You should have received a copy of the GNU Lesser General Public License
+ *    along with this.  If not, see <http://www.gnu.org/licenses/>.
+ ***********************************************************************
+ */
+
+
 #include "snes.h"
 
 void sub_read_next (void)
@@ -31,10 +54,8 @@ void sub_read_next (void)
   }
 }
 
-int ends_with(const char* name, const char* extension, size_t length)
+static int ends_with(const char* name, const char* extension, size_t length)
 {
-  if (name == NULL)
-    return 0;
   const char* ldot = strrchr(name, '.');
   
   if (ldot != NULL)
@@ -49,7 +70,13 @@ int ends_with(const char* name, const char* extension, size_t length)
 int read_sub_file_into_mem (char* filename)
 {
   char sub_filename[TEXT_BUFF_SIZE];
- 
+  
+  //If no name specified, look to see if we got given an infile
+  if (filename == NULL && botcfg.infile != NULL)
+    strcpy (filename, botcfg.infile);
+  else
+    return 1;
+
   //Look for an accompying subtitle file
   if (ends_with (filename, "rec", 3))
   {
@@ -57,7 +84,9 @@ int read_sub_file_into_mem (char* filename)
     strcat (sub_filename, ".sub");
   }
   else
-    return 1;
+    strcpy (sub_filename, filename);
+  
+  fprintf (stdout, "Looking for subtitle file: %s\n", sub_filename);
 
   FILE *input_file = fopen (sub_filename, "rb");
 

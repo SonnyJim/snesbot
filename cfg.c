@@ -5,8 +5,10 @@ void print_usage (void)
 	printf("Usage:\n");
 	printf("sudo snes [options] -f [filename]\n\n");
 	printf("Options:\n");
-	printf(" -r       Record\n");
-	printf(" -p       Playback\n");
+	printf(" -r             Record mode\n");
+	printf(" -p             Playback mode\n");
+	printf(" -s [filename]  Subtitle file\n");
+	printf(" -w             Wait for SNES power on\n");
 }
 
 
@@ -82,7 +84,7 @@ int read_options (int argc, char **argv)
   set_joystick_mapping ();
   //read_macro_into_mem ("./hadoken.rec", &macro1);
 
-  while ((c = getopt (argc, argv, "rpf:")) != -1)
+  while ((c = getopt (argc, argv, "rpf:s:w")) != -1)
   {
       switch (c)
       {
@@ -106,10 +108,17 @@ int read_options (int argc, char **argv)
           botcfg.outfile = optarg;
           botcfg.infile = optarg;
           break;
+        case 's':
+          botcfg.subfile = optarg;
+        break;
+        case 'w':
+          botcfg.wait_for_power = 1;
+        break;
       }
   }
+  
 
-  read_sub_file_into_mem (botcfg.infile);
+  read_sub_file_into_mem (botcfg.subfile);
   return 0;
 }
 

@@ -155,7 +155,6 @@ inline void latch_interrupt (void)
   {
     set_inputs (PIN_BASE, p1.input);
     pb_read_next (&macro1);
-
   }
   else if ((botcfg.state == STATE_PLAYBACK) && (playback.next_latch == latch_counter)) 
   {
@@ -184,15 +183,18 @@ inline void latch_interrupt (void)
 
 void wait_for_snes_powerup (void)
 {
-    if (snes_is_on ())
-    {
-      fprintf (stdout, "SNES power detected, please power cycle the SNES\n");
-      while (snes_is_on ());
-      fprintf (stdout, "SNES Powered off\n");
-    }
-    fprintf (stdout, "Waiting for SNES power on\n");
-    while (!snes_is_on ());
- 
+  if (!botcfg.wait_for_power)
+    return;
+  
+  if (snes_is_on ())
+  {
+    fprintf (stdout, "SNES power detected, please power cycle the SNES\n");
+    while (snes_is_on ()) delay(1);
+    fprintf (stdout, "SNES Powered off\n");
+  }
+  
+  fprintf (stdout, "Waiting for SNES power on\n");
+  while (!snes_is_on ()) delay(1);
 }
 
 void main_loop (void)
@@ -207,7 +209,7 @@ void main_loop (void)
       fprintf (stderr, "Error setting up record buffer\n");
       botcfg.state = STATE_EXITING;
     }
-  //  wait_for_snes_powerup ();
+    wait_for_snes_powerup ();
   }
   else if (botcfg.state == STATE_PLAYBACK)
   {
@@ -217,10 +219,11 @@ void main_loop (void)
       fprintf (stderr, "Error setting up playback buffer\n");
       botcfg.state = STATE_EXITING;
     }
-   // wait_for_snes_powerup ();
+    wait_for_snes_powerup ();
   }
   
   interrupt_enable();
+ 
   if (botcfg.state == STATE_PLAYBACK || botcfg.state == STATE_RECORDING)
     wait_for_first_latch ();
   
@@ -228,17 +231,14 @@ void main_loop (void)
   {
     if (botcfg.state != STATE_PLAYBACK && botcfg.state != STATE_MACRO)
     {
-      read_player_inputs();
-  //    if (p1.input != p1.input_old)
-    //    print_buttons (p1.input, p2.input);
+      read_joystick_inputs();
     }
-    /*
+
     if (!snes_is_on())
     {
       fprintf (stdout, "SNES poweroff detected\n");
       botcfg.state = STATE_EXITING;
     }
-    */
   }
   //Always attempt a save before exiting
   record_save ();

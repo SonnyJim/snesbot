@@ -1,57 +1,7 @@
-/*
- * piSnes.c:
- *	Driver for the SNES Joystick controller on the Raspberry Pi
- *	Heavily based on code from WiringPi
- *	Copyright (c) 2012 Gordon Henderson,
- *	Copyright (c) 2016 Ewan Meadows
- ***********************************************************************
- * This file was part of wiringPi:
- *	https://projects.drogon.net/raspberry-pi/wiringpi/
- *
- *    wiringPi is free software: you can redistribute it and/or modify
- *    it under the terms of the GNU Lesser General Public License as
- *    published by the Free Software Foundation, either version 3 of the
- *    License, or (at your option) any later version.
- *
- *    wiringPi is distributed in the hope that it will be useful,
- *    but WITHOUT ANY WARRANTY; without even the implied warranty of
- *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *    GNU Lesser General Public License for more details.
- *
- *    You should have received a copy of the GNU Lesser General Public
- *    License along with wiringPi.
- *    If not, see <http://www.gnu.org/licenses/>.
- ***********************************************************************
- */
-
 #include <wiringPi.h>
 #include "snes.h"
 
-#define	MAX_SNES_JOYSTICKS	8
 
-//Set this to as quick as possible, we don't want to hang around waiting to read in the joysticks
-#define	PULSE_TIME	5
-
-// Data to store the pins for each controller
-
-struct snesPinsStruct
-{
-  unsigned int cPin, dPin, lPin ;
-} ;
-
-void process_ev (struct js_event ev, struct player_t* player);
-
-static struct snesPinsStruct snesPins [MAX_SNES_JOYSTICKS] ;
-
-static int joysticks = 0 ;
-
-void configure_player_buttons (struct player_t* player);
-
-/*
- * detectSnesJoystick:
- *      A SNES joystick should always return bits 14, 15 and 16 high
- *********************************************************************************
- */
 int detectSnesJoystick (int joystick)
 {
   int i;
@@ -83,20 +33,14 @@ int detectSnesJoystick (int joystick)
   return 0;
 };
 
-/*
- * setupNesJoystick:
- *	Create a new SNES joystick interface, program the pins, etc.
- *********************************************************************************
- */
-
 int setupSnesJoystick (int dPin, int cPin, int lPin)
 {
-  if (joysticks == MAX_SNES_JOYSTICKS)
+  if (gpio_joysticks == MAX_SNES_JOYSTICKS)
     return -1 ;
 
-  snesPins [joysticks].dPin = dPin ;
-  snesPins [joysticks].cPin = cPin ;
-  snesPins [joysticks].lPin = lPin ;
+  snesPins [gpio_joysticks].dPin = dPin ;
+  snesPins [gpio_joysticks].cPin = cPin ;
+  snesPins [gpio_joysticks].lPin = lPin ;
 
   digitalWrite (lPin, LOW) ;
   digitalWrite (cPin, LOW) ;
@@ -105,9 +49,8 @@ int setupSnesJoystick (int dPin, int cPin, int lPin)
   pinMode (cPin, OUTPUT) ;
   pinMode (dPin, INPUT) ;
 
-  return joysticks++ ;
+  return gpio_joysticks++ ;
 }
-
 
 static void readSnesJoystick (struct player_t* player)
 {
@@ -135,7 +78,6 @@ static void readSnesJoystick (struct player_t* player)
   digitalWrite (pins->lPin, HIGH) ; delayMicroseconds (PULSE_TIME) ;
 
   player->input = value ^ 0xFFFF;
-  //return value ^ 0xFFFF;
 }
 
 static int setup_player_gpio (struct player_t* player)
@@ -215,9 +157,48 @@ int setup_player (struct player_t* player)
   }
 }
 
+int read_joystick_cfg (void)
+{
+  FILE* cfgfile;
+  cfgfile = fopen ("./snes.cfg", "rb");
+
+  if (cfgfile == NULL)
+  {
+    fprintf (stderr, "Error opening file for writing: %s\n", strerror(errno));
+    return 1;
+  }
+  
+  fread (&p1.joytype, sizeof(p1.joytype), 1, cfgfile);
+  fread (&p2.joytype, sizeof(p1.joytype), 1, cfgfile);
+  fread (&p1.mapping, sizeof(p1.mapping), 1, cfgfile);
+  fread (&p2.mapping, sizeof(p2.mapping), 1, cfgfile);
+  fclose (cfgfile);
+  return 0;
+}
+
+int save_joystick_cfg (void)
+{
+  FILE* cfgfile;
+  cfgfile = fopen ("./snes.cfg", "wb");
+
+  if (cfgfile == NULL)
+  {
+    fprintf (stderr, "Error opening file for writing: %s\n", strerror(errno));
+    return 1;
+  }
+  
+  fwrite (&p1.joytype, sizeof(p1.joytype), 1, cfgfile);
+  fwrite (&p2.joytype, sizeof(p1.joytype), 1, cfgfile);
+  fwrite (&p1.mapping, sizeof(p1.mapping), 1, cfgfile);
+  fwrite (&p2.mapping, sizeof(p2.mapping), 1, cfgfile);
+  fclose (cfgfile);
+  return 0;
+}
+
 int joystick_setup (void)
 {
   int ret = 0;
+  gpio_joysticks = 0 ;
   p1.num = 1;
   p2.num = 2;
   p1.joytype = JOY_USB;
@@ -226,7 +207,7 @@ int joystick_setup (void)
   return ret;
 }
 
-void check_player_inputs (void)
+void check_joystick_inputs (void)
 {
   if ((p1.input & SNES_L) && (p1.input & SNES_R))
     fprintf (stdout, "LR PRESSED\n\n\n\n");
@@ -313,7 +294,7 @@ void configure_player_buttons (struct player_t* player)
 
 }
 
-void read_player_inputs (void)
+void read_joystick_inputs (void)
 {
     read_input (&p1);
     //check_player_inputs();

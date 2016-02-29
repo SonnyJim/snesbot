@@ -10,7 +10,7 @@ void pb_read_next (struct playback_t* pb)
   {
     pb->filepos = 0;
     clear_all_buttons ();
-    read_player_inputs();
+    read_joystick_inputs();
     botcfg.state = STATE_RUNNING;
   }
   pb->next_latch += pb->start_latch;
@@ -27,7 +27,7 @@ void playback_read_next ()
   {
     fprintf (stdout, "Playback finished\n");
     clear_all_buttons ();
-    read_player_inputs();
+    read_joystick_inputs();
     botcfg.state = STATE_RUNNING;
   }
   //fprintf (stdout, "%i, %x, %i\n", latch_counter, p1.input, playback.next_latch);
@@ -110,6 +110,8 @@ int write_mem_into_file (void)
 	//Store to output file
 	long result = fwrite (record.ptr, 1, record.filesize, output_file);
 	printf ("Wrote %lu bytes to %s\n", result, botcfg.outfile);
+        if (result != record.filesize)
+          fprintf (stderr, "Error:  Didn't write all the bytes?\n");
 	fclose(output_file);
 	return 0;
 }

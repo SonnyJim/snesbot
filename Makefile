@@ -3,7 +3,7 @@
 #	SNESBot - Pi controlled SNES Bot
 #	https://github.com/sonnyjim/snesbot/
 #
-#	Copyright (c) 2013 Ewan Meadows
+#	Copyright (c) 2013-2016 Ewan Meadows
 #################################################################################
 # This file is part of SNESBot:
 #
@@ -40,12 +40,5 @@ snes: $(OBJS)
 	@echo [link]
 	@$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS)
 
-snesbot: snesbot.o
-	@echo [link]
-	@$(CC) -o $@ snesbot.o $(LDFLAGS) $(LDLIBS)
-
-snestest: snestest.o
-	@echo [link]
-	@$(CC) -o $@ snestest.o $(LDFLAGS) $(LDLIBS)
 clean:
-	rm -rf *.o snesbot snestest snes jstest
+	rm -rf *.o snes jstest

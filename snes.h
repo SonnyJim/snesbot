@@ -11,8 +11,7 @@
 #include <mcp23017.h>
 
 #include "subs.h"
-
-//#include "piSnes.h"
+#include "joystick.h"
 
 #define PIN_LIN 15 //wiring Pi 15 reads the latch from the SNES
 #define PIN_P1CLK 7 //Which GPIO are used for reading in the P1 SNES joystick
@@ -51,16 +50,11 @@
 //Magic file number
 #define FILEMAGIC	0xBEC16260
 #define CHUNK_SIZE (sizeof(unsigned long int) + sizeof(unsigned short int))
-//Pointers to input/output buffers
-char *input_ptr;
-char *ptr;
+
 //Magic number for SNESBot recorded files
 extern long filemagic;
 //Default filename
 char *filename;
-
-
-extern unsigned short int inputs[16];
 
 typedef enum {STATE_INIT, STATE_RUNNING, STATE_MACRO, STATE_RECORDING, STATE_PLAYBACK, STATE_EXITING} states_t;
 states_t state;
@@ -76,7 +70,6 @@ extern void playback_read_next ();
 extern void record_save (void);
 
 void record_player_inputs ();
-void read_player_inputs ();
 void signal_handler (int signal);
 void wait_for_snes_powerup (void);
 void time_start (void);
@@ -85,9 +78,6 @@ void time_stop (void);
 
 int setup ();
 int port_setup (void);
-int joystick_setup (void);
-void check_player_inputs (void);
-void read_player_inputs (void);
 int read_options (int argc, char **argv);
 int interrupt_enable (void);
 
@@ -95,8 +85,6 @@ int is_a_pi (void);
 
 typedef enum {JOY_NONE, JOY_GPIO, JOY_USB} joytype_t;
 
-#include <linux/input.h>
-#include <linux/joystick.h>
 
 
 //Use this to store button mapping config for USB-> SNES
@@ -116,10 +104,13 @@ struct joymap_t {
 
 struct conf_t {
   int snesgpio_num; //How many SNES controllers we have plugged in
+  int wait_for_power;
+  signed int skew;
   char* outfile;
   char* infile;
+  char* subfile;
   states_t state;
-};
+} botcfg;
 
 struct player_t {
   int num; //Which player we are
@@ -135,7 +126,6 @@ struct player_t {
 struct player_t p1; 
 struct player_t p2;
 
-struct conf_t botcfg;
 
 void print_buttons (unsigned short int p1, unsigned short int p2);
 
@@ -144,10 +134,6 @@ struct record_t {
   int filesize;
   long int filepos;
 };
-
-int joystick_setup (void);
-int setupUSBJoystick (struct player_t* player, char* device);
-int readUSBJoystick (struct player_t* player);
 
 struct playback_t {
   void *ptr;
