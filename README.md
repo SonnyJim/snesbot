@@ -134,6 +134,7 @@ Why they don't work is a bit of a mystery to me at the moment.  As the code that
 
 Features:
 ---------
+Input via USB and real SNES controller via GPIO.
 
 Record joystick inputs and playback
 
@@ -144,7 +145,7 @@ To Playback a lsnes TAS video:
 ------------------------------
 Download lsnes video from TASVideos.org (lsmv)
 
-Download lsnes emulator and install
+Download lsnes emulator and install, make sure you download a version that supports on_latch()
 
 Download polldump.lua script
 
@@ -154,27 +155,27 @@ Load lua script
 
 Type in the messages window:
 
-L start_dump ("filename.dump")
+L start_dump ("filename")
 
 and press 'Execute'
 
 Start playback
 
-At the end of playback, type:
+The dump file will be saved automatically at the end of playback, but if you want to finish early, type:
 
 L end_dump ()
 
 and press 'Execute'
 
-Copy the dump file to the Pi
+Copy the .rec and .sub files to the Pi
 
 Load with:
 
-sudo ./snesbot -l -L -p -j -f filename.dump
+sudo ./snesbot -p -f filename.rec
 
 Turn on SNES and hopefully watch it do incredible things
 
-I have included a script for snes9x-rr, but unfortunately it seems that the emulation isn't accurate enough, especially if there are 'lag frames' during ganmeplay.
+I have included a script for snes9x-rr, but unfortunately it seems that the emulation isn't accurate enough, especially if there are 'lag frames' during gameplay.
 
 TODO:
 ----
