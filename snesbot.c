@@ -1,6 +1,6 @@
 /*
- * snes.c:
- *	The beginnings of a SNES Bot
+ * snesbot.c:
+ *    A Raspberry Pi based SNES/NES Bot
  *
  * Copyright (c) 2016 Ewan Meadows
  ***********************************************************************
@@ -21,11 +21,8 @@
  */
 
 /*TODO: 
-Check to see if a joystick is there by reading in the high bits - DONE
 Add in a header, with what the last frame is
 Print the estimated playback time at file start
-Store movie comments in the file 
-Don't allow more than one instance 
 
 Hook into the following lines from the SNES that we have available
 Reset (MITM SuperCIC reset line?  Might not work with SA-1)
@@ -45,7 +42,7 @@ Convert to single mcu rather than 4021's
 Program ASCII Turbo boxes
 */
 
-#include "snes.h"
+#include "snesbot.h"
 //Magic number for SNESBot recorded files
 long filemagic = FILEMAGIC;
 //Default filename
@@ -99,12 +96,10 @@ void wait_for_first_latch (void)
 
 void clear_all_buttons (void)
 { 
-  //p1.input = 0;
-  //p1.input_old = 0;
-  
   int i;
   for (i = 0 ; i < 16 ; ++i)
   {
+      p1.input = 0x0000;
       //Set all pins to output and default high
       pinMode (PIN_BASE + i, OUTPUT) ;
       pullUpDnControl (PIN_BASE + i, PUD_DOWN);

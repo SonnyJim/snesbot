@@ -21,7 +21,7 @@
  */
 
 
-#include "snes.h"
+#include "snesbot.h"
 
 void sub_read_next (void)
 {

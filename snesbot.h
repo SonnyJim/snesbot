@@ -12,6 +12,7 @@
 
 #include "subs.h"
 #include "joystick.h"
+#include "macro.h"
 
 #define PIN_LIN 15 //wiring Pi 15 reads the latch from the SNES
 #define PIN_P1CLK 7 //Which GPIO are used for reading in the P1 SNES joystick
@@ -82,25 +83,6 @@ int read_options (int argc, char **argv);
 int interrupt_enable (void);
 
 int is_a_pi (void);
-
-typedef enum {JOY_NONE, JOY_GPIO, JOY_USB} joytype_t;
-
-
-
-//Use this to store button mapping config for USB-> SNES
-struct joymap_t {
-    int x_axis;
-    int y_axis;
-    int b;
-    int y;
-    int select;
-    int start;
-    int a;
-    int x;
-    int l;
-    int r;
-    int macro; //Button for macro shifting
-};
 
 struct conf_t {
   int snesgpio_num; //How many SNES controllers we have plugged in

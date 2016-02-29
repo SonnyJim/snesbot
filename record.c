@@ -1,11 +1,34 @@
-#include "snes.h"
+/*
+ * record.c:
+ *    Various recording and playback routines
+ *
+ * Copyright (c) 2016 Ewan Meadows
+ ***********************************************************************
+ *
+ *    This is free software: you can redistribute it and/or modify
+ *    it under the terms of the GNU Lesser General Public License as published by
+ *    the Free Software Foundation, either version 3 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU Lesser General Public License for more details.
+ *
+ *    You should have received a copy of the GNU Lesser General Public License
+ *    along with this.  If not, see <http://www.gnu.org/licenses/>.
+ ***********************************************************************
+ */
 
+
+#include "snesbot.h"
+
+//Currently only used for macro playback
 void pb_read_next (struct playback_t* pb)
 {
   memcpy (&pb->next_latch, pb->ptr + (pb->filepos * CHUNK_SIZE), sizeof(latch_counter));
   memcpy (&p1.input, pb->ptr + sizeof(latch_counter) + (pb->filepos * CHUNK_SIZE), sizeof(p1.input));
   pb->filepos++;
-  //fprintf (stdout, "Next latch:%i\n", pb.next_latch);
   if ((pb->filepos * CHUNK_SIZE) > pb->filesize)
   {
     pb->filepos = 0;

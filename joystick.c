@@ -1,7 +1,29 @@
-#include <wiringPi.h>
-#include "snes.h"
+/*
+ * joystick.c:
+ *    SNES GPIO/USB Joystick reading and configuration
+ *
+ * Copyright (c) 2016 Ewan Meadows
+ ***********************************************************************
+ *
+ *    This is free software: you can redistribute it and/or modify
+ *    it under the terms of the GNU Lesser General Public License as published by
+ *    the Free Software Foundation, either version 3 of the License, or
+ *    (at your option) any later version.
+ *
+ *    This is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU Lesser General Public License for more details.
+ *
+ *    You should have received a copy of the GNU Lesser General Public License
+ *    along with this.  If not, see <http://www.gnu.org/licenses/>.
+ ***********************************************************************
+ */
 
 
+#include "snesbot.h"
+
+//Top 4 bits should always be high if a stick is plugged in
 int detectSnesJoystick (int joystick)
 {
   int i;
@@ -268,7 +290,19 @@ static int wait_for_js_button (struct player_t* player)
 
 void configure_player_buttons (struct player_t* player)
 {
+  int i;
   fprintf (stdout, "Configuring buttons for player %i\n", player->num);
+  fprintf (stdout, "Select joypad type:\n (0=None, 1=GPIO, 2=USB)\n");
+  scanf("%d",&i);
+  player->joytype = i;
+  if (player->joytype == JOY_NONE)
+    return;
+
+  if (player->joytype > JOY_USB)
+  {
+    player->joytype = JOY_USB;
+  }
+
   fprintf (stdout, "X axis\n");
   player->mapping.x_axis = wait_for_js_axis (player);
   fprintf (stdout, "Y axis\n");

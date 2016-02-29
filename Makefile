@@ -29,14 +29,10 @@ INCLUDE	= -I/usr/local/include
 CFLAGS	= $(DEBUG) -Wall $(INCLUDE) -Winline -pipe -std=c99 $(OPT)
 LDFLAGS	= -L/usr/local/lib
 LDLIBS	= -lwiringPi -lwiringPiDev
-OBJS = snes.o record.o joystick.o cfg.o isapi.o pidfile.o subs.o macro.o
-all: snes
+OBJS = snesbot.o record.o joystick.o cfg.o isapi.o pidfile.o subs.o macro.o
+all: snesbot
 
-jstest: joystick.o jstest.o
-	@echo [link]
-	@$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS)
-
-snes: $(OBJS)
+snesbot: $(OBJS)
 	@echo [link]
 	@$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS)
 
