@@ -21,11 +21,11 @@ L end_dump ()
 And press 'Execute'
 Copy file to the Pi
 Run with:
-sudo ./snesbot -l -L -p -j -f filename.rec
+sudo ./snesbot -p -f filename.rec
 Turn on SNES
 ]]--
 
-print ("SNESBot Lua Latch Dumper loaded")
+print ("SNESBot lsnes Latch Dumper loaded")
 dumpfile = nil;
 start_dump = function(filename)
 	file, err = io.open(filename ..".rec", "wb");
@@ -56,25 +56,22 @@ end_dump = function()
 	sub_file = nil;
 end
 
-function toBits(num, bits)
-    -- returns a table of bits
-    local t={} -- will contain the bits
-    for b=bits,1,-1 do
-        rest=math.fmod(num,2)
-        t[b]=rest
-        num=(num-rest)/2
-    end
-    if num==0 then return t else return {'Not enough bits to represent this number'}end
-end
-
+--Function to dump the subtitles to a separate file
 on_frame = function()
 	if dumpfile then
+		--Don't try and playback if we can't find a sub_frame
+		if sub_frame == nil then
+			return
+		end
+
+		--Find which latch the subtitle starts
 		if movie.currentframe() == sub_frame then
 			sub_file:write(string.pack("L", latch_counter))
 		end
-
+		
 		if movie.currentframe() == sub_frame + sub_length then
 			subs = subtitle.get(sub_frame, sub_length);
+			subs = string.gsub (subs, "\n", "\r\n");
 			sub_length = string.len(subs);
 
 			sub_file:write(string.pack("L", latch_counter));
@@ -89,8 +86,10 @@ end
 
 on_latch = function()
 	if dumpfile then
-		tframe = movie.get_frame(movie.find_frame(movie.currentframe()));
-		
+		--Don't try and playback after the movie has finished
+		if not pcall(function() tframe = movie.get_frame(movie.find_frame(movie.currentframe())) end) then
+			end_dump()
+		end
 		--We start off with all buttons off
 		p1_input = 0x0000
 		for i = 0, 15, 1 do
