@@ -73,14 +73,14 @@ int read_sub_file_into_mem (char* filename)
   
   //If no name specified, look to see if we got given an infile
   if (filename == NULL && botcfg.infile != NULL)
-    strcpy (filename, botcfg.infile);
+    strcpy (sub_filename, botcfg.infile);
   else
     return 1;
 
   //Look for an accompying subtitle file
-  if (ends_with (filename, "rec", 3))
+  if (ends_with (botcfg.infile, "rec", 3))
   {
-    strncpy (sub_filename, filename, strlen(filename) - 4);
+    strncpy (sub_filename, botcfg.infile, strlen(botcfg.infile) - 4);
     strcat (sub_filename, ".sub");
   }
   else
