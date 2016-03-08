@@ -5,7 +5,10 @@
 #include <errno.h>
 #include <string.h>
 #include <signal.h>
+#include <unistd.h>
+
 #include <sys/time.h>
+#include <sys/types.h>
 
 #include <wiringPi.h>
 #include <mcp23017.h>

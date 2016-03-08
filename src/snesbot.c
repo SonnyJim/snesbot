@@ -45,13 +45,10 @@ Program ASCII Turbo boxes
 #include "snesbot.h"
 //Magic number for SNESBot recorded files
 long filemagic = FILEMAGIC;
-//Default filename
+
 unsigned short int inputs[16] = {
 	SNES_BIT16, SNES_BIT15, SNES_BIT14, SNES_R, SNES_L, SNES_X, SNES_A, SNES_RIGHT, 
 	SNES_LEFT, SNES_DOWN, SNES_UP, SNES_START, SNES_SELECT, SNES_Y, SNES_B};
-
-
-
 
 void print_buttons (unsigned short int p1, unsigned short int p2)
 {
@@ -239,22 +236,37 @@ void main_loop (void)
   record_save ();
 }
 
+int drop_privs (void)
+{
+  char* user;
+  char* group;
+  
+  user = getenv("SUDO_UID");
+  group = getenv("SUDO_GID");
+
+  fprintf (stdout, "Dropping privileges to %s:%s\n", user, group);
+  if (setgid(atoi(group)) == -1) 
+  {
+    fprintf (stderr, "Error dropping group privileges\n");
+    return 1;
+  }
+  if (setuid(atoi(user)) == -1) {
+    fprintf (stderr, "Error dropping user privileges\n");
+    return 1;
+  }
+  return 0;
+}
+
 int main (int argc, char **argv)
 {
   botcfg.state = STATE_INIT;
-  if (check_pid ())
-  {
-    fprintf (stderr, "Are we already running?\n");
-    return 1;
-  }
-
-  //piHiPri (45);
+   //piHiPri (45);
   if (setup () != 0)
   {
     fprintf (stderr, "Error setting up\n");
     return 1;
   }
-  
+
   if (read_options (argc, argv) != 0)
   {
     fprintf (stderr, "Error reading options\n");
@@ -272,7 +284,15 @@ int main (int argc, char **argv)
     fprintf (stderr, "Error setting up joysticks\n");
     return 1;
   }
-
+  
+  //drop_privs ();
+  
+  if (check_pid ())
+  {
+    fprintf (stderr, "Are we already running?\n");
+    return 1;
+  }
+  
   main_loop ();
   clear_all_buttons (); 
   fprintf (stdout, "Exiting...\n");

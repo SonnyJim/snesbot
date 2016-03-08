@@ -37,4 +37,4 @@ snesbot: $(OBJS)
 	@$(CC) -o $@ $^ $(LDFLAGS) $(LDLIBS)
 
 clean:
-	rm -rf *.o snes jstest
+	rm -rf *.o snesbot

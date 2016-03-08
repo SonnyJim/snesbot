@@ -21,7 +21,6 @@
  */
 
 #include "snesbot.h"
-
 void print_usage (void)
 {
 	printf("Usage:\n");
@@ -73,13 +72,19 @@ int setup ()
     fprintf (stdout, "oops: %s\n", strerror (errno)) ;
     return 1 ;
   }
-	
+
   if (port_setup () != 0)
   {
     return 1;
   }
-
- signal(SIGINT, signal_handler);
+  
+  //Enable the signal handler
+  signal (SIGINT, signal_handler);
+  
+  read_sub_file_into_mem (botcfg.subfile);
+  //set_joystick_mapping ();
+  read_macro_into_mem ("../rec/hadoken.rec", &macro1);
+  
   return 0;
 }
 
@@ -102,9 +107,8 @@ void set_joystick_mapping (void)
 int read_options (int argc, char **argv)
 {
   int c;
+  //Set the default filename
   filename = "snes.rec";
-  set_joystick_mapping ();
-  //read_macro_into_mem ("./hadoken.rec", &macro1);
 
   while ((c = getopt (argc, argv, "rpf:s:w")) != -1)
   {
@@ -139,14 +143,12 @@ int read_options (int argc, char **argv)
       }
   }
   
-
-  read_sub_file_into_mem (botcfg.subfile);
   return 0;
 }
 
 void signal_handler (int signal)
 {
-	printf ("\nSIGINT detected, exiting\n");
-        clear_all_buttons ();
-        botcfg.state = STATE_EXITING;
+  printf ("\nSIGINT detected, exiting\n");
+  clear_all_buttons ();
+  botcfg.state = STATE_EXITING;
 }

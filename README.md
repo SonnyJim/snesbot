@@ -179,14 +179,14 @@ I have included a script for snes9x-rr, but unfortunately it seems that the emul
 
 TODO:
 ----
-Live input via USB joystick or keyboard attached to the Pi
+Support for more than 1 controller
+
 Netplay (depending on the RNG method used by each game)
-Support for more than 2 controllers
+
+LED sign output to display subtitles
 
 Support other TAS video files other than lsnes
 
 Add support for SNES mouse via a USB mouse attached to the Pi.
-
-Autofire/special moves on a single button press
 
 Find out why some games don't work
