@@ -1,6 +1,8 @@
 #define	MAX_SNES_JOYSTICKS	8
 #define	PULSE_TIME	5
 
+#define DEADZONE 32768 / 2
+
 #include <linux/input.h>
 #include <linux/joystick.h>
 
@@ -37,8 +39,9 @@ int gpio_joysticks;
 void configure_player_buttons (struct player_t* player);
 int read_joystick_cfg (void);
 int save_joystick_cfg (void);
+void cfg_joysticks (void);
 void check_joystick_inputs (void);
 void read_joystick_inputs (void);
 int joystick_setup (void);
-int setupUSBJoystick (struct player_t* player, char* device);
+int openUSBJoystick (struct player_t* player, char* device);
 int readUSBJoystick (struct player_t* player);

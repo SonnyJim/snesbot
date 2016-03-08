@@ -23,6 +23,8 @@
 
 #include "snesbot.h"
 
+
+
 //Top 4 bits should always be high if a stick is plugged in
 int detectSnesJoystick (int joystick)
 {
@@ -113,14 +115,14 @@ static int setup_player_gpio (struct player_t* player)
   if (player->joygpio == -1)
   {
     fprintf (stderr, "Error in setupSnesJoystick\n");
-    return 0;
+    return 1;
   }
   
   //Check to see if there's a joystick plugged in
   if (detectSnesJoystick (player->joygpio) != 0)
   {
     fprintf (stderr, "Didn't detect a SNES joystick in port 1\n");
-    return 0;
+    return 1;
   }
 
   if (player->joygpio == -1)
@@ -139,7 +141,7 @@ static int setup_player_usb (struct player_t* player)
 {
   if (player->num == 1)
   {
-    if (setupUSBJoystick (player, "/dev/input/js0") != 0)
+    if (openUSBJoystick (player, "/dev/input/js0") != 0)
     {
       fprintf (stderr, "Error setting up USB joystick for player 1\n");
       return 1;
@@ -147,7 +149,7 @@ static int setup_player_usb (struct player_t* player)
   }
   else if (player->num == 2)
   {
-    if (setupUSBJoystick (player, "/dev/input/js1") != 0)
+    if (openUSBJoystick (player, "/dev/input/js1") != 0)
     {
       fprintf (stderr, "Error setting up USB joystick for player 2\n");
       return 1;
@@ -186,13 +188,13 @@ int read_joystick_cfg (void)
 
   if (cfgfile == NULL)
   {
-    fprintf (stderr, "Error opening file for writing: %s\n", strerror(errno));
+    fprintf (stderr, "Error opening joystick cfg file for reading: %s\n", strerror(errno));
     return 1;
   }
   
   fread (&p1.joytype, sizeof(p1.joytype), 1, cfgfile);
-  fread (&p2.joytype, sizeof(p1.joytype), 1, cfgfile);
   fread (&p1.mapping, sizeof(p1.mapping), 1, cfgfile);
+  fread (&p2.joytype, sizeof(p1.joytype), 1, cfgfile);
   fread (&p2.mapping, sizeof(p2.mapping), 1, cfgfile);
   fclose (cfgfile);
   return 0;
@@ -210,8 +212,8 @@ int save_joystick_cfg (void)
   }
   
   fwrite (&p1.joytype, sizeof(p1.joytype), 1, cfgfile);
-  fwrite (&p2.joytype, sizeof(p1.joytype), 1, cfgfile);
   fwrite (&p1.mapping, sizeof(p1.mapping), 1, cfgfile);
+  fwrite (&p2.joytype, sizeof(p1.joytype), 1, cfgfile);
   fwrite (&p2.mapping, sizeof(p2.mapping), 1, cfgfile);
   fclose (cfgfile);
   return 0;
@@ -223,7 +225,10 @@ int joystick_setup (void)
   gpio_joysticks = 0 ;
   p1.num = 1;
   p2.num = 2;
-  p1.joytype = JOY_USB;
+  
+  if (read_joystick_cfg () != 0)
+    cfg_joysticks();
+
   ret = setup_player (&p1);
   //configure_player_buttons (&p1);
   return ret;
@@ -259,16 +264,14 @@ static int wait_for_js_axis (struct player_t* player)
   while (waiting)
   {
     fread (&ev, sizeof(ev), 1, player->fp);
-    if ((ev.type == JS_EVENT_AXIS) 
-        && (ev.value != 0))
+    if ((ev.type == JS_EVENT_AXIS) && (ev.value != 0))
     {
-  fprintf (stdout, "1T%d N%d V%d\n", ev.type, ev.number, ev.value);
-        waiting = 0;
+      fprintf (stdout, "1T%d N%d V%d\n", ev.type, ev.number, ev.value);
+      waiting = 0;
     }
   }
   return ev.number; 
 }
-
 
 static int wait_for_js_button (struct player_t* player)
 {
@@ -278,30 +281,30 @@ static int wait_for_js_button (struct player_t* player)
   while (waiting)
   {
     fread (&ev, sizeof(ev), 1, player->fp);
-    if ((ev.type == JS_EVENT_BUTTON) 
-        && (ev.value > 0))
+    if ((ev.type == JS_EVENT_BUTTON) && (ev.value > 0))
     {
-  fprintf (stdout, "1T%d N%d V%d\n", ev.type, ev.number, ev.value);
-        waiting = 0;
+      fprintf (stdout, "1T%d N%d V%d\n", ev.type, ev.number, ev.value);
+      waiting = 0;
     }
   }
   return ev.number; 
 }
 
-void configure_player_buttons (struct player_t* player)
+static void cfg_player_buttons (struct player_t* player)
 {
   int i;
   fprintf (stdout, "Configuring buttons for player %i\n", player->num);
   fprintf (stdout, "Select joypad type:\n (0=None, 1=GPIO, 2=USB)\n");
   scanf("%d",&i);
   player->joytype = i;
-  if (player->joytype == JOY_NONE)
+  if (player->joytype == JOY_NONE || player->joytype == JOY_GPIO)
     return;
 
   if (player->joytype > JOY_USB)
   {
     player->joytype = JOY_USB;
   }
+  
 
   fprintf (stdout, "X axis\n");
   player->mapping.x_axis = wait_for_js_axis (player);
@@ -324,8 +327,21 @@ void configure_player_buttons (struct player_t* player)
   player->mapping.select = wait_for_js_button (player);
   fprintf (stdout, "Start\n");
   player->mapping.start = wait_for_js_button (player);
+  fprintf (stdout, "Macro\n");
+  player->mapping.macro = wait_for_js_button (player);
   fprintf (stdout,"Finished configuring buttons for player %i\n", player->num);
 
+}
+
+void cfg_joysticks (void)
+{
+  if (openUSBJoystick (&p1, "/dev/input/js0") == 0)
+      cfg_player_buttons (&p1);
+  
+  if (openUSBJoystick (&p2, "/dev/input/js1") == 0)
+      cfg_player_buttons (&p2);
+  
+  save_joystick_cfg ();
 }
 
 void read_joystick_inputs (void)
@@ -337,16 +353,13 @@ void read_joystick_inputs (void)
 //Coverts the USB joystick event data in a short int
 void process_ev (struct js_event ev, struct player_t* player)
 {
- // fprintf (stdout, "T%d N%d V%d\n", ev.type, ev.number, ev.value);
-  //if (ev.type != JS_EVENT_BUTTON || ev.type != JS_EVENT_AXIS)
-  //  return;
   if (ev.type == JS_EVENT_AXIS)
   {
     if (ev.number == player->mapping.x_axis)
     {
-      if (ev.value > 0)
+      if (ev.value > (0 + DEADZONE))
         player->input |= SNES_RIGHT;
-      else if (ev.value < 0)
+      else if (ev.value < (0 - DEADZONE))
         player->input |= SNES_LEFT;
       else
       {
@@ -356,9 +369,9 @@ void process_ev (struct js_event ev, struct player_t* player)
     }
     else if (ev.number == player->mapping.y_axis)
     {
-      if (ev.value < 0)
+      if (ev.value < (0 - DEADZONE))
         player->input |= SNES_UP;
-      else if (ev.value > 0)
+      else if (ev.value > (0 + DEADZONE))
         player->input |= SNES_DOWN;
       else
       {
@@ -442,16 +455,20 @@ int readUSBJoystick (struct player_t* player)
     /* EAGAIN is returned when the queue is empty */
   if (errno != EAGAIN && errno != 0)
   {
-    //fprintf (stdout, "\nerrno %i\n", errno);
-    //fprintf (stderr, "Error reading joystick %s\n", strerror(errno));
     return 1;      
   }
   
   return 0;
 }
 
-int setupUSBJoystick (struct player_t* player, char* device)
+int openUSBJoystick (struct player_t* player, char* device)
 {
+  if (player->fp != NULL)
+  {
+    fprintf (stderr, "Error: joystick device already opened?\n");
+    return 1;
+  }
+
   player->fp = fopen (device, "rb");
 
   if (player->fp == NULL)
